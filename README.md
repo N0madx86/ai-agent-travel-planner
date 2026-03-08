@@ -1,8 +1,8 @@
 # AI-Agent Travel Planner 🧭
 
 A full-stack AI-powered travel planning application with hotel search and itinerary generation.
-A local-first, real-time, multi-agent travel intelligence system (India-first).
-This project combines live web scraping, local LLM agents, and a full-stack app to help users plan trips, manage budgets and tasks, and generate communications — while keeping control and data local.
+A local-first, real-time, multi-agent travel intelligence system.
+This project combines live web scraping, LLM agents, and a full-stack app to help users plan trips, manage budgets and tasks, and generate communications — while keeping control and data local.
 
 ---
 
@@ -31,7 +31,7 @@ Visit `http://localhost:5173` to use the app.
 ## Features
 
 - 🏨 Live hotel search from Booking.com (no cached/fake numbers)
-- 🤖 AI-powered itinerary generation (Ollama)
+- 🤖 AI-powered itinerary generation
 - 💾 Smart caching system
 - 🎨 Beautiful glassmorphism UI
 - 📱 Fully responsive design
@@ -40,7 +40,7 @@ Visit `http://localhost:5173` to use the app.
 
 ## Tech Stack
 
-- **Backend:** FastAPI, SQLModel, Playwright, Node.js (Express server.js), Ollama
+- **Backend:** FastAPI, SQLModel, Playwright, Node.js (Express server.js)
 - **Frontend:** React, Vite, Tailwind CSS v4
 - **Database:** SQLite (async)
 
