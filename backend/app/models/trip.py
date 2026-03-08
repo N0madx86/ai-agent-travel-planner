@@ -11,6 +11,7 @@ class TripBase(SQLModel):
     budget: str  # "Budget", "Mid-range", "Luxury"
     interests: str  # Comma-separated
     travelers: int = 1
+    session_id: Optional[str] = None  # Browser session identifier for user isolation
 
 class TripCreate(TripBase):
     """Model for creating a new trip (request body)"""

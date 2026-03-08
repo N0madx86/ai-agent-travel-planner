@@ -9,10 +9,20 @@ const api = axios.create({
   },
 });
 
+// Generate or retrieve a persistent session ID for this browser
+const getSessionId = () => {
+  let sid = localStorage.getItem('tabi_session_id');
+  if (!sid) {
+    sid = `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('tabi_session_id', sid);
+  }
+  return sid;
+};
+
 // Trips API
 export const tripsAPI = {
-  create: (tripData) => api.post('/api/trips/', tripData),
-  getAll: () => api.get('/api/trips/'),
+  create: (tripData) => api.post('/api/trips/', { ...tripData, session_id: getSessionId() }),
+  getAll: () => api.get('/api/trips/', { params: { session_id: getSessionId() } }),
   getOne: (id) => api.get(`/api/trips/${id}`),
   update: (id, tripData) => api.put(`/api/trips/${id}`, tripData),
   delete: (id) => api.delete(`/api/trips/${id}`),

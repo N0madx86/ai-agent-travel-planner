@@ -72,31 +72,31 @@ class AIService:
         """Generate travel itinerary using OpenRouter (gpt-4o-mini)"""
         days = (trip.end_date - trip.start_date).days
         
-        prompt = f"""Helpful guide for {trip.destination}. Dates: {trip.start_date} to {trip.end_date}. Budget: {trip.budget}.
+        prompt = f"""You are a travel guide for {trip.destination}. Dates: {trip.start_date} to {trip.end_date}. Budget: {trip.budget}. Travelers: {trip.travelers}. Interests: {trip.interests}.
 
 Strict Rules:
-- Max 2 concise sentences/activity.
-- Real place names only.
-- Strict section order: Highlights, then Day-by-Day, then Budget Tips, then Good to Know.
+- Max 2 concise sentences per activity. Real place names only.
+- The Day-by-Day section must contain ONLY activities and food — absolutely NO tips, advice, or money-saving suggestions. Tips belong ONLY in the Budget Tips and Good to Know sections.
+- Strict section order: Highlights → Day-by-Day → Budget Tips → Good to Know.
 - DO NOT include a 'Trip Overview' section.
 
 Structure:
 ## 🗺️ Destination Highlights
-5-7 names.
+5-7 must-see place names with one sentence each.
 
 ## 📅 Day-by-Day Itinerary
 ### Day 1: [Title]
-**Morning:** [Activity + Tip]
-**Afternoon:** [Activity + Tip]
-**Evening:** [Activity + Tip]
-🍽️ **Eat:** [Place] - [Tip]
+**Morning:** [Activity description only - no tips]
+**Afternoon:** [Activity description only - no tips]
+**Evening:** [Activity description only - no tips]
+🍽️ **Eat:** [Restaurant name] - [What to order]
 ...
 
 ## 💡 Budget Tips
-3 ideas.
+3 practical money-saving ideas.
 
 ## 📝 Good to Know
-3 tips."""
+3 local culture/safety tips."""
 
         result = await self._call_openrouter(prompt)
         if result:

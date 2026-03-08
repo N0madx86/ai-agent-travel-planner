@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-from typing import List
+from typing import List, Optional
 from app.models.trip import Trip, TripCreate
 from app.core.database import get_session
 
@@ -18,9 +18,12 @@ async def create_trip(trip_in: TripCreate, session: AsyncSession = Depends(get_s
 
 
 @router.get("/", response_model=List[Trip])
-async def get_trips(session: AsyncSession = Depends(get_session)):
-    """Get all trips"""
-    result = await session.execute(select(Trip))
+async def get_trips(session_id: Optional[str] = None, session: AsyncSession = Depends(get_session)):
+    """Get trips - filtered by session_id if provided"""
+    query = select(Trip)
+    if session_id:
+        query = query.where(Trip.session_id == session_id)
+    result = await session.execute(query)
     return result.scalars().all()
 
 @router.get("/{trip_id}", response_model=Trip)
