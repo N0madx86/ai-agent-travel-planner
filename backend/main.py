@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     print("Database initialized")
     if settings.OPENROUTER_API_KEY:
-        print("OpenRouter (gpt-4o-mini) initialized as primary AI")
+        print("OpenRouter (Stepfun) initialized as primary AI")
     yield
     # Shutdown
     print("Shutting down...")
@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.API_TITLE,
     version=settings.API_VERSION,
-    description="AI-powered travel planning with Ollama",
+    description="AI-powered travel planning with Stepfun via OpenRouter",
     lifespan=lifespan
 )
 
