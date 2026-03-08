@@ -4,7 +4,8 @@ uvicorn[standard]==0.32.0
 
 # Database
 # Fix for Render.com Python 3.12+ greenlet build error
-greenlet>=3.0.0
+greenlet==3.1.1
+SQLAlchemy>=2.0.36
 sqlmodel==0.0.22
 aiosqlite==0.20.0
 
