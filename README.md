@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌍 Tabi 🧭
+# 🌍 AI-Agent Travel Planner 🧭
 
 **A local-first, real-time, multi-agent travel intelligence system (India-first)**
 
@@ -73,8 +73,8 @@ Ensure you have the following installed to run this project:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/N0madx86/Tabi.git
-   cd Tabi
+   git clone https://github.com/N0madx86/ai-agent-travel-planner.git
+   cd ai-agent-travel-planner
    ```
 
 2. **Backend Setup (FastAPI)**
