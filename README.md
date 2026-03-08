@@ -7,7 +7,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)](https://reactjs.org/)
 [![Playwright](https://img.shields.io/badge/playwright-45ba4b?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
+[![OpenRouter](https://img.shields.io/badge/OpenRouter-000000?style=for-the-badge&logoColor=white)](https://openrouter.ai/)
 
 [Features](#-features) • [Architecture](#%EF%B8%8F-architecture) • [Getting Started](#-getting-started) • [Agents](#%EF%B8%8F-multi-agent-system)
 
@@ -27,7 +27,7 @@ We never perform payments or actual bookings — the system only redirects users
 ## ✨ Features
 
 - **🏨 Live Hotel & Flight Search**: Real-time prices scraped directly from Booking.com and Indian travel sites via headless browsers (Playwright). No cached or fake numbers!
-- **🤖 High-Performance AI**: Powered by OpenAI (ChatGPT-4o-mini). Intelligent, fast, and reliable reasoning capabilities.
+- **🤖 High-Performance AI**: Powered by Stepfun (via OpenRouter). Intelligent, fast, and reliable reasoning capabilities.
 - **🧠 Multi-Agent Reasoning**: Dedicated agents handle planning itineraries, validating budgets, managing tasks, and drafting communications.
 - **🎨 Stunning Aesthetics**: A beautiful glassmorphism-themed, fully responsive React UI.
 - **🔒 Privacy**: The app never makes unauthorized purchases or sends emails without explicit confirmation.
@@ -53,7 +53,7 @@ graph LR
     Frontend(React UI) <--> Backend(FastAPI)
     Backend <--> DB[(SQLite/Postgres)]
     Backend <--> Scrapers[Playwright Crawlers]
-    Backend <--> AI[OpenAI API]
+    Backend <--> AI[OpenRouter API]
 ```
 
 ---
@@ -67,7 +67,7 @@ Ensure you have the following installed to run this project:
 - **Node.js** (LTS Recommended)
 - **Python 3.10+** 
 - **Playwright** (For scraping)
-- **OpenAI API Key** (Set up via `.env` file)
+- **OpenRouter API Key** (Set up via `.env` file)
 
 ### Local Quickstart
 
@@ -96,7 +96,7 @@ Ensure you have the following installed to run this project:
    Visit `http://localhost:5173` to explore the app!
 
 4. **Environment Configuration**
-   Ensure your OpenAI API key is configured correctly in the backend `.env` file to empower the intelligence layer.
+   Ensure your OpenRouter API key is configured correctly in the backend `.env` file to empower the intelligence layer.
 
 <!-- Placeholder for Setup/Installation GIF -->
 > *<p align="center">🎥 [Insert Setup/Terminal GIF here (Optional)]</p>*
