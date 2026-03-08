@@ -7,7 +7,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)](https://reactjs.org/)
 [![Playwright](https://img.shields.io/badge/playwright-45ba4b?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/)
-[![Ollama](https://img.shields.io/badge/Ollama-000000?style=for-the-badge&logo=Ollama&logoColor=white)](https://ollama.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
 
 [Features](#-features) • [Architecture](#%EF%B8%8F-architecture) • [Getting Started](#-getting-started) • [Agents](#%EF%B8%8F-multi-agent-system)
 
@@ -18,7 +18,7 @@
 
 </div>
 
-This project combines **live web scraping**, **local LLM agents**, and a **full-stack app** to help users plan trips, manage budgets and tasks, and generate communications — while keeping your data strictly local.
+This project combines **live web scraping**, **cloud LLM agents**, and a **full-stack app** to help users plan trips, manage budgets and tasks, and generate communications.
 
 We never perform payments or actual bookings — the system only redirects users to official booking sites based on its live scraped intelligence.
 
@@ -27,10 +27,10 @@ We never perform payments or actual bookings — the system only redirects users
 ## ✨ Features
 
 - **🏨 Live Hotel & Flight Search**: Real-time prices scraped directly from Booking.com and Indian travel sites via headless browsers (Playwright). No cached or fake numbers!
-- **🤖 Private Local AI**: Powered by Ollama. No costly cloud LLM APIs required—everything runs on your machine.
+- **🤖 High-Performance AI**: Powered by OpenAI (ChatGPT-4o-mini). Intelligent, fast, and reliable reasoning capabilities.
 - **🧠 Multi-Agent Reasoning**: Dedicated agents handle planning itineraries, validating budgets, managing tasks, and drafting communications.
 - **🎨 Stunning Aesthetics**: A beautiful glassmorphism-themed, fully responsive React UI.
-- **🔒 Privacy First**: Your data stays local. The app never makes unauthorized purchases or sends emails without explicit confirmation.
+- **🔒 Privacy**: The app never makes unauthorized purchases or sends emails without explicit confirmation.
 - **💾 Smart Caching & Audit Trails**: Maintains full records of decisions and data sources for transparency.
 
 <!-- Placeholder for Main Feature Screenshot -->
@@ -53,7 +53,7 @@ graph LR
     Frontend(React UI) <--> Backend(FastAPI)
     Backend <--> DB[(SQLite/Postgres)]
     Backend <--> Scrapers[Playwright Crawlers]
-    Backend <--> AI[Ollama Local LLMs]
+    Backend <--> AI[OpenAI API]
 ```
 
 ---
@@ -67,7 +67,7 @@ Ensure you have the following installed to run this project:
 - **Node.js** (LTS Recommended)
 - **Python 3.10+** 
 - **Playwright** (For scraping)
-- **Ollama** (Local LLM environment)
+- **OpenAI API Key** (Set up via `.env` file)
 
 ### Local Quickstart
 
@@ -95,8 +95,8 @@ Ensure you have the following installed to run this project:
    ```
    Visit `http://localhost:5173` to explore the app!
 
-4. **Launch Ollama**
-   Ensure Ollama is running locally with your configured models ready to serve the intelligence layer.
+4. **Environment Configuration**
+   Ensure your OpenAI API key is configured correctly in the backend `.env` file to empower the intelligence layer.
 
 <!-- Placeholder for Setup/Installation GIF -->
 > *<p align="center">🎥 [Insert Setup/Terminal GIF here (Optional)]</p>*
@@ -116,7 +116,7 @@ Our AI ecosystem is divided into specific roles to ensure targeted and efficient
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please keep our local-first, privacy-driven focus in mind. Be respectful to the scraped targets by using rate-limits and polite crawling patterns.
+Contributions are welcome! Be respectful to the scraped targets by using rate-limits and polite crawling patterns.
 
 1. Fork the repo
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
@@ -129,4 +129,4 @@ Contributions are welcome! Please keep our local-first, privacy-driven focus in 
 ## 📜 Authors & Acknowledgments
 
 - **Maintainer**: [@N0madx86](https://github.com/N0madx86)
-- **Design Inspiration**: Built as a portfolio-grade local-first multi-agent showcase.
+- **Design Inspiration**: Built as a portfolio-grade multi-agent showcase.
