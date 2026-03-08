@@ -38,7 +38,7 @@ We never perform payments or actual bookings — the system only redirects users
 
 ## 💻 Tech Stack
 
-- **Backend:** FastAPI, SQLModel, Playwright, Node.js (Express server.js)
+- **Backend:** FastAPI, SQLModel, Playwright
 - **Frontend:** React, Vite, Tailwind CSS v4
 - **Database:** SQLite (async)
 
@@ -84,7 +84,7 @@ Ensure you have the following installed to run this project:
    # Activate: `venv\Scripts\activate` on Windows, `source venv/bin/activate` on Mac/Linux
    pip install -r requirements.txt
    playwright install chromium
-   python -m uvicorn app.main:app --reload
+   python -m uvicorn main:app --reload
    ```
 
 3. **Frontend Setup (React/Vite)**
