@@ -54,6 +54,10 @@ def _fetch_unsplash_images_raw(
     order_by: str = "relevant",
 ) -> list[dict]:
     """Fetch images from Unsplash for a given query string."""
+    if not UNSPLASH_ACCESS_KEY or UNSPLASH_ACCESS_KEY.strip() == "":
+        logger.warning("[Unsplash API] No access key configured, using fallback images.")
+        return []
+
     params = {
         "query": query,
         "per_page": max_images,
