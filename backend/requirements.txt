@@ -1,9 +1,18 @@
+# Core
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
+
+# Database
+# Fix for Render.com Python 3.12+ greenlet build error
+greenlet>=3.0.0
 sqlmodel==0.0.22
 aiosqlite==0.20.0
+
+# Config & Scrapers
 pydantic-settings==2.6.0
 playwright==1.48.0
+
+# HTTP & Env
 httpx==0.27.2
 requests==2.32.5
 python-dotenv==1.2.1
