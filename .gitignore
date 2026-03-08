@@ -1,0 +1,34 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+dist/
+.vite/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# MacOS 
+.DS_Store
+
+# Logs
+logs
+*.log
+
+# Databases
+*.db
+travel_planner.db
+travel_planner.db-journal
+
+# Editor
+.vscode/
+.idea/
+
+# Testing
+cache/
+.pytest_cache/
