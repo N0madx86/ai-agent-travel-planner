@@ -301,7 +301,12 @@ export default function TripDetailPage() {
       setHotels(res.data);
     } catch (e) {
       console.error(e);
-      const msg = e?.response?.data?.detail || 'Hotel search is temporarily unavailable. Booking.com may be blocking our request. Please try again in a few minutes.';
+      let msg;
+      if (e?.code === 'ECONNABORTED' || e?.message?.includes('timeout')) {
+        msg = 'Hotel search is taking longer than expected (server may be waking up). Please try again — it will be faster the second time!';
+      } else {
+        msg = e?.response?.data?.detail || 'Hotel search failed. Please try again in a few minutes.';
+      }
       alert(msg);
     }
     finally { setSearchingHotels(false); }

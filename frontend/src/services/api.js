@@ -4,7 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://tabi-uul5.onrender
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 180000, // 3 min — hotel scraping can take up to 2 min
+  timeout: 300000, // 5 min — Render free tier cold start + scraping + AI curation
   headers: {
     'Content-Type': 'application/json',
   },
