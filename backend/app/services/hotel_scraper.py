@@ -321,12 +321,6 @@ class HotelScraper:
         base = "https://www.booking.com/searchresults.html"
         budget_lower = budget.lower()
         
-        # Sort by price: low-to-high for budget, high-to-low for luxury
-        if any(kw in budget_lower for kw in ['luxur', 'premium', 'high']):
-            sort_order = 'price_desc'  # Expensive first
-        else:
-            sort_order = 'price'  # Cheapest first
-        
         params = [
             f"ss={destination.replace(' ', '+')}",
             f"checkin={checkin}",
@@ -335,12 +329,14 @@ class HotelScraper:
             "no_rooms=1",
             "selected_currency=INR",
             "lang=en-us",
-            f"order={sort_order}",
         ]
         
-        # For luxury: filter to 9+ rated properties
+        # Sort only for extreme budgets; mid-range uses default relevance sort
         if any(kw in budget_lower for kw in ['luxur', 'premium', 'high']):
-            params.append("review_score_group=9")
+            params.append("order=price_desc")  # Most expensive first
+        elif any(kw in budget_lower for kw in ['budget', 'cheap', 'economy', 'low']):
+            params.append("order=price")  # Cheapest first
+        # Mid-range: no sort param → Booking.com defaults to popularity/relevance
         
         return f"{base}?{'&'.join(params)}"
 

@@ -167,14 +167,14 @@ Structure:
         I have scraped a list of {len(hotels_context)} properties. Here is the JSON data:
         {json.dumps(hotels_context, ensure_ascii=False)}
         
-        Please select the top {max_results} absolute best hotels from this list that fit the "{budget}" constraint.
+        Please select the top {max_results} best hotels from this list that fit the "{budget}" level.
         - Rules:
-        1. Budget level interpretation:
-           - "Luxury"/"Premium"/"High-end": Pick the MOST EXPENSIVE and HIGHEST RATED hotels. Prioritize 5-star quality and top ratings.
-           - "Mid-range"/"Moderate": Pick hotels in the MIDDLE price range. Avoid both the cheapest and most expensive options.
-           - "Budget"/"Cheap"/"Economy": Pick the CHEAPEST hotels that still have decent ratings (7+).
-           - If "{budget}" contains a specific number (e.g., "5000" or "under 10000"), treat it as a strict maximum TOTAL price. Calculate Total Price = price_per_night * number_of_nights. STRICTLY FILTER OUT any hotel where total price exceeds the budget.
-        2. Within the budget category, always prefer higher-rated hotels. Ensure your recommendations exist in the provided JSON array.
+        1. Budget level guide (adapt to local pricing — what's "mid-range" varies by destination):
+           - "Luxury"/"Premium": Favor the higher-priced, top-rated hotels. Think 4-5 star quality.
+           - "Mid-range"/"Moderate": Pick hotels that offer good value with solid quality — not the cheapest or most expensive. Aim for well-rated hotels at reasonable prices for the destination.
+           - "Budget"/"Cheap"/"Economy": Favor the more affordable options, but still with acceptable ratings (6.5+).
+           - If "{budget}" contains a specific number (e.g., "5000" or "under 10000"), treat it as a maximum TOTAL price. Total Price = price_per_night × number_of_nights.
+        2. Always prefer higher-rated hotels within the budget tier. Names must exactly match the provided JSON array.
         3. If the budget is heavily unrealistic and ZERO hotels qualify, return an empty array [].
         
         Return ONLY a raw JSON array containing exactly the names of the selected hotels as strings (up to {max_results}).
