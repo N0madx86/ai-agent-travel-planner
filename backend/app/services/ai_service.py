@@ -26,7 +26,7 @@ class AIService:
             except Exception as e:
                 logger.error(f"Failed to initialize Gemini Client: {e}")
     
-    async def _call_openrouter(self, prompt: str, model: str = "meta-llama/llama-3.1-8b-instruct:free", use_reasoning: bool = False) -> Optional[str]:
+    async def _call_openrouter(self, prompt: str, model: str = "stepfun/step-3.5-flash:free", use_reasoning: bool = False) -> Optional[str]:
         """Internal helper to call OpenRouter API"""
         if not settings.OPENROUTER_API_KEY:
             return None
