@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Union
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
+from playwright_stealth import stealth_async
 import logging
 import os
 
@@ -182,12 +183,8 @@ class HotelScraper:
                     locale='en-IN'
                 )
                 page = await context.new_page()
-                # Mask automation signals (bypass basic DataDome checks)
-                await page.add_init_script("""
-                    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-                    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-                    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-                """)
+                # Apply full stealth to bypass DataDome and other bot detection
+                await stealth_async(page)
                 offset = (page_num - 1) * 25
                 url = f"{base_url}&offset={offset}"
                 

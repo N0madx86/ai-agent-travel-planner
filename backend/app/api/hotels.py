@@ -35,35 +35,34 @@ async def search_hotels(request: HotelSearchRequest, session: AsyncSession = Dep
             max_pages=request.max_pages
         )
 
-        # If scraping returned nothing (blocked), fall back to AI suggestions
+        # If scraping returned nothing (blocked or no results), fail gracefully
         if not scraped_hotels:
-            scraper._add_log("Scraping blocked — generating AI hotel suggestions...")
-            logger.info(f"Scraping returned 0 hotels for {request.destination}, switching to AI suggestions")
-            hotels_data = await ai_service.generate_hotel_suggestions(
-                destination=request.destination,
-                budget=request.budget,
-                checkin_date=request.checkin.isoformat(),
-                checkout_date=request.checkout.isoformat(),
-                max_results=request.max_results
+            scraper._add_log("Deep Search failed: No hotels found. The site may be blocking automated access.")
+            raise HTTPException(
+                status_code=503,
+                detail="Hotel search is temporarily unavailable. Booking.com may be blocking our request. Please try again in a few minutes."
             )
-            if not hotels_data:
-                raise HTTPException(status_code=503, detail="Hotel suggestions are temporarily unavailable. Please try again.")
-            scraper._add_log(f"AI suggestions ready. Found {len(hotels_data)} hotels.")
-        else:
-            # 2. Curate scraped hotels using AI
-            scraper._add_log("Analyzing results with AI...")
-            hotels_data = await ai_service.curate_hotels(
-                budget=request.budget,
-                hotels_file_path=str(scraper.current_search_file),
-                checkin_date=request.checkin.isoformat(),
-                checkout_date=request.checkout.isoformat(),
-                max_results=request.max_results
-            )
-            scraper.clear_current_search()
-            if not hotels_data:
-                scraper._add_log("AI analysis failed to find matching hotels.")
-                return []
-            scraper._add_log(f"Deep Search complete. Selected {len(hotels_data)} best hotels.")
+        
+        # 2. Add AI analysis log
+        scraper._add_log("Analyzing results with AI...")
+        
+        # 3. Curate hotels using AI
+        hotels_data = await ai_service.curate_hotels(
+            budget=request.budget,
+            hotels_file_path=str(scraper.current_search_file),
+            checkin_date=request.checkin.isoformat(),
+            checkout_date=request.checkout.isoformat(),
+            max_results=request.max_results
+        )
+        
+        # 4. Clean up temporary JSON
+        scraper.clear_current_search()
+        
+        if not hotels_data:
+            scraper._add_log("AI analysis failed to find matching hotels.")
+            return []
+            
+        scraper._add_log(f"Deep Search complete. Selected {len(hotels_data)} best hotels.")
         
         # 5. Save curated hotels to database and return
         hotels = []

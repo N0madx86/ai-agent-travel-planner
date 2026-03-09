@@ -116,79 +116,7 @@ Structure:
 
         return "Error: Failed to generate itinerary. Please check API configuration."
 
-    async def generate_hotel_suggestions(
-        self, destination: str, budget: str,
-        checkin_date: str = "", checkout_date: str = "",
-        max_results: int = 5
-    ) -> List[Dict]:
-        """
-        Generate hotel suggestions using AI when scraping is blocked.
-        Returns hotels in the same format as scraped results.
-        """
-        nights_str = ""
-        if checkin_date and checkout_date:
-            nights_str = f"Dates: {checkin_date} to {checkout_date}."
-
-        prompt = f"""You are a travel expert. Generate {max_results} realistic hotel recommendations for {destination}.
-Budget level: {budget}. {nights_str}
-
-Return ONLY a raw JSON array. Each object must have these exact keys:
-- "name": real hotel name that exists in {destination}
-- "location": neighbourhood or distance from city centre (e.g. "1.2 km from city centre")
-- "price_per_night": realistic price in INR as a number (integer), matching the {budget} budget level
-- "rating": rating between 6.0 and 9.5 as a float
-- "source": always "ai_suggestion"
-
-Example: [{{"name":"Hotel ABC","location":"Near beach, 0.5 km from centre","price_per_night":3500,"rating":8.2,"source":"ai_suggestion"}}]
-
-Return ONLY the JSON array, no markdown, no explanation."""
-
-        response_text = await self._call_openrouter(prompt)
-        if not response_text:
-            return []
-
-        # Strip markdown fences if present
-        response_text = response_text.strip()
-        for prefix in ["```json", "```"]:
-            if response_text.startswith(prefix):
-                response_text = response_text[len(prefix):]
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
-        response_text = response_text.strip()
-
-        try:
-            hotels = json.loads(response_text)
-            if not isinstance(hotels, list):
-                return []
-
-            # Normalize and fill missing fields
-            result = []
-            dest_encoded = destination.replace(' ', '+')
-            booking_search = f"https://www.booking.com/searchresults.html?ss={dest_encoded}"
-            if checkin_date:
-                booking_search += f"&checkin={checkin_date}"
-            if checkout_date:
-                booking_search += f"&checkout={checkout_date}"
-
-            for h in hotels[:max_results]:
-                result.append({
-                    "name": h.get("name", "Unnamed Hotel"),
-                    "location": h.get("location", destination),
-                    "price_per_night": float(h.get("price_per_night", 0)),
-                    "currency": "INR",
-                    "rating": h.get("rating"),
-                    "image_url": None,
-                    "booking_url": booking_search,
-                    "source": "ai_suggestion",
-                })
-            logger.info(f"AI generated {len(result)} hotel suggestions for {destination}")
-            return result
-        except Exception as e:
-            logger.error(f"Failed to parse AI hotel suggestions: {e}")
-            return []
-
     async def curate_hotels(self, budget: str, hotels_file_path: str, checkin_date: str = "", checkout_date: str = "", max_results: int = 5) -> List[Dict]:
-
         """
         Use OpenRouter or Gemini to select the best hotels based on budget from the scraped data.
         Falls back to a naive selection if no AI is available.
