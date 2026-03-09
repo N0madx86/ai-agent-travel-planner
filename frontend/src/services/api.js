@@ -32,6 +32,7 @@ export const tripsAPI = {
 // Hotels API
 export const hotelsAPI = {
   search: (searchParams) => api.post('/api/hotels/search', searchParams),
+  searchStatus: () => api.get('/api/hotels/search/status'),
   getAll: () => api.get('/api/hotels/'),
   clearCache: () => api.delete('/api/hotels/cache'),
 };

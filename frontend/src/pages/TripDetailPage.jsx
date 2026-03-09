@@ -293,7 +293,16 @@ export default function TripDetailPage() {
   const searchHotels = async () => {
     if (!trip) return;
     setSearchingHotels(true);
+
+    // Keep-alive: poll status every 30s so axios never times out waiting
+    let keepAliveInterval = null;
     try {
+      keepAliveInterval = setInterval(async () => {
+        try {
+          await hotelsAPI.searchStatus();
+        } catch (_) { /* ignore status poll errors */ }
+      }, 30000);
+
       const res = await hotelsAPI.search({
         destination: trip.destination, checkin: trip.start_date,
         checkout: trip.end_date, budget: trip.budget, max_results: 10,
@@ -309,7 +318,10 @@ export default function TripDetailPage() {
       }
       alert(msg);
     }
-    finally { setSearchingHotels(false); }
+    finally {
+      if (keepAliveInterval) clearInterval(keepAliveInterval);
+      setSearchingHotels(false);
+    }
   };
 
   const generateItinerary = async () => {

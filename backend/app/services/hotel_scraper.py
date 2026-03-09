@@ -91,13 +91,14 @@ class HotelScraper:
         destination: str, 
         checkin: Union[datetime, str], 
         checkout: Union[datetime, str], 
+        budget: str = "Mid-range",
         max_pages: int = 5
     ) -> List[Dict]:
         """
         Deep Search for hotels scraping multiple pages
         """
         self._init_logs()
-        self._add_log(f"Starting Deep Search for {destination}...")
+        self._add_log(f"Starting Deep Search for {destination} (budget: {budget})...")
 
         # Convert strings to datetime if necessary
         if isinstance(checkin, str):
@@ -119,7 +120,7 @@ class HotelScraper:
         # Offload scraping to a separate thread with its own ProactorEventLoop
         hotels = await asyncio.to_thread(
             self._run_scrape_booking_sync,
-            destination, checkin_dt, checkout_dt, max_pages
+            destination, checkin_dt, checkout_dt, budget, max_pages
         )
         
         # Save to container for AI to read
@@ -128,7 +129,7 @@ class HotelScraper:
         
         return hotels
     
-    def _run_scrape_booking_sync(self, destination, checkin, checkout, max_pages):
+    def _run_scrape_booking_sync(self, destination, checkin, checkout, budget, max_pages):
         """Run the async scraper in a dedicated event loop"""
         import sys
         if sys.platform == 'win32':
@@ -138,7 +139,7 @@ class HotelScraper:
         asyncio.set_event_loop(loop)
         try:
             return loop.run_until_complete(
-                self._scrape_booking(destination, checkin, checkout, max_pages)
+                self._scrape_booking(destination, checkin, checkout, budget, max_pages)
             )
         finally:
             loop.close()
@@ -148,13 +149,14 @@ class HotelScraper:
         destination: str, 
         checkin: datetime, 
         checkout: datetime, 
+        budget: str = "Mid-range",
         max_pages: int = 2
     ) -> List[Dict]:
-        """Scrape Booking.com sequentially, mimicking human browsing"""
+        """Scrape Booking.com sequentially with stealth and Xvfb"""
         
         checkin_str = checkin.strftime('%Y-%m-%d')
         checkout_str = checkout.strftime('%Y-%m-%d')
-        base_url = self._build_url(destination, checkin_str, checkout_str)
+        base_url = self._build_url(destination, checkin_str, checkout_str, budget)
         
         nights = (checkout - checkin).days
         if nights < 1:
@@ -315,8 +317,16 @@ class HotelScraper:
         except Exception:
             return None
     
-    def _build_url(self, destination: str, checkin: str, checkout: str) -> str:
+    def _build_url(self, destination: str, checkin: str, checkout: str, budget: str = "Mid-range") -> str:
         base = "https://www.booking.com/searchresults.html"
+        budget_lower = budget.lower()
+        
+        # Sort by price: low-to-high for budget, high-to-low for luxury
+        if any(kw in budget_lower for kw in ['luxur', 'premium', 'high']):
+            sort_order = 'price_desc'  # Expensive first
+        else:
+            sort_order = 'price'  # Cheapest first
+        
         params = [
             f"ss={destination.replace(' ', '+')}",
             f"checkin={checkin}",
@@ -324,8 +334,14 @@ class HotelScraper:
             "group_adults=2",
             "no_rooms=1",
             "selected_currency=INR",
-            "lang=en-us"
+            "lang=en-us",
+            f"order={sort_order}",
         ]
+        
+        # For luxury: filter to 9+ rated properties
+        if any(kw in budget_lower for kw in ['luxur', 'premium', 'high']):
+            params.append("review_score_group=9")
+        
         return f"{base}?{'&'.join(params)}"
 
 

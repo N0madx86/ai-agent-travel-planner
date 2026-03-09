@@ -169,8 +169,12 @@ Structure:
         
         Please select the top {max_results} absolute best hotels from this list that fit the "{budget}" constraint.
         - Rules:
-        1. If "{budget}" contains a specific number (e.g., "5000" or "under 10000"), you MUST treat it as a strict maximum TOTAL price constraint. Calculate Total Price = price_per_night * number_of_nights. STRICTLY FILTER OUT any hotels where the total price is greater than the parsed budget.
-        2. Consider both price constraint and highest rating. Ensure your recommendations are valid and exist in the provided JSON array.
+        1. Budget level interpretation:
+           - "Luxury"/"Premium"/"High-end": Pick the MOST EXPENSIVE and HIGHEST RATED hotels. Prioritize 5-star quality and top ratings.
+           - "Mid-range"/"Moderate": Pick hotels in the MIDDLE price range. Avoid both the cheapest and most expensive options.
+           - "Budget"/"Cheap"/"Economy": Pick the CHEAPEST hotels that still have decent ratings (7+).
+           - If "{budget}" contains a specific number (e.g., "5000" or "under 10000"), treat it as a strict maximum TOTAL price. Calculate Total Price = price_per_night * number_of_nights. STRICTLY FILTER OUT any hotel where total price exceeds the budget.
+        2. Within the budget category, always prefer higher-rated hotels. Ensure your recommendations exist in the provided JSON array.
         3. If the budget is heavily unrealistic and ZERO hotels qualify, return an empty array [].
         
         Return ONLY a raw JSON array containing exactly the names of the selected hotels as strings (up to {max_results}).

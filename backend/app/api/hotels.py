@@ -22,6 +22,11 @@ class HotelSearchRequest(BaseModel):
     max_results: int = 5      # AI returns top 5
     max_pages: int = 2        # Number of Booking.com pages to scrape (keep low on free tier)
 
+@router.get("/search/status")
+async def search_status():
+    """Lightweight endpoint polled by frontend to keep connection alive during scraping"""
+    return {"status": "ok"}
+
 @router.post("/search")
 async def search_hotels(request: HotelSearchRequest, session: AsyncSession = Depends(get_session)):
     """Deep Search for hotels with AI curation"""
@@ -32,6 +37,7 @@ async def search_hotels(request: HotelSearchRequest, session: AsyncSession = Dep
             destination=request.destination,
             checkin=request.checkin.isoformat(),
             checkout=request.checkout.isoformat(),
+            budget=request.budget,
             max_pages=request.max_pages
         )
 
