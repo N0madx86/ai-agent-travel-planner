@@ -28,12 +28,20 @@ async def search_hotels(request: HotelSearchRequest, session: AsyncSession = Dep
     try:
         # 1. Scrape multiple pages (creates current_search.json)
         logger.info(f"Starting Deep Search for {request.destination}, budget: {request.budget}")
-        await scraper.search_hotels(
+        scraped_hotels = await scraper.search_hotels(
             destination=request.destination,
             checkin=request.checkin.isoformat(),
             checkout=request.checkout.isoformat(),
             max_pages=request.max_pages
         )
+
+        # If scraping returned nothing (blocked or no results), fail gracefully
+        if not scraped_hotels:
+            scraper._add_log("Deep Search failed: No hotels found. The site may be blocking automated access.")
+            raise HTTPException(
+                status_code=503,
+                detail="Hotel search is temporarily unavailable. Booking.com may be blocking our request. Please try again in a few minutes."
+            )
         
         # 2. Add AI analysis log
         scraper._add_log("Analyzing results with AI...")
