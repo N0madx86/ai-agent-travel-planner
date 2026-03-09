@@ -296,7 +296,7 @@ export default function TripDetailPage() {
     try {
       const res = await hotelsAPI.search({
         destination: trip.destination, checkin: trip.start_date,
-        checkout: trip.end_date, max_results: 10,
+        checkout: trip.end_date, budget: trip.budget, max_results: 10,
       });
       setHotels(res.data);
     } catch (e) {
