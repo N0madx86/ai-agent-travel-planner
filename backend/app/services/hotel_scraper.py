@@ -199,11 +199,11 @@ class HotelScraper:
                     })
                     
                     self._add_log(f"Scraping page {page_num} (offset {offset})...")
-                    await page.goto(url, wait_until='domcontentloaded', timeout=60000)
+                    await page.goto(url, wait_until='domcontentloaded', timeout=25000)
                     
                     # Wait for properties to load
                     try:
-                        await page.wait_for_selector('[data-testid="property-card"]', timeout=30000)
+                        await page.wait_for_selector('[data-testid="property-card"]', timeout=12000)
                     except PlaywrightTimeout:
                         return []
                         

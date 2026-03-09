@@ -299,7 +299,11 @@ export default function TripDetailPage() {
         checkout: trip.end_date, max_results: 10,
       });
       setHotels(res.data);
-    } catch (e) { console.error(e); alert('Failed to search hotels.'); }
+    } catch (e) {
+      console.error(e);
+      const msg = e?.response?.data?.detail || 'Hotel search is temporarily unavailable. Booking.com may be blocking our request. Please try again in a few minutes.';
+      alert(msg);
+    }
     finally { setSearchingHotels(false); }
   };
 

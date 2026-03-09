@@ -1,9 +1,10 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://tabi-c5cx.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://tabi-uul5.onrender.com';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 180000, // 3 min — hotel scraping can take up to 2 min
   headers: {
     'Content-Type': 'application/json',
   },
