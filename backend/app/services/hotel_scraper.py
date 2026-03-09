@@ -5,7 +5,6 @@ Fully integrated with the travel planner app
 
 import asyncio
 import json
-import random
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -20,15 +19,7 @@ from app.core.config import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Rotating user agent pool — realistic Chrome versions on Windows/Mac
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-]
+
 
 
 class HotelScraper:
@@ -191,10 +182,6 @@ class HotelScraper:
 
         use_headless = display_proc is None
 
-        # ── Realistic Google referral URL ──
-        dest_query = destination.replace(' ', '+')
-        google_referer = f"https://www.google.com/search?q=hotels+in+{dest_query}&num=10"
-
         try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(
@@ -207,41 +194,25 @@ class HotelScraper:
                         '--disable-gpu',
                         '--disable-software-rasterizer',
                         '--disable-extensions',
-                        '--window-size=1920,1080',
                     ]
                 )
 
-                # ── Rich browser fingerprint ──
                 context = await browser.new_context(
-                    user_agent=random.choice(USER_AGENTS),
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                     viewport={'width': 1920, 'height': 1080},
                     locale='en-IN',
-                    timezone_id='Asia/Kolkata',
-                    geolocation={'latitude': 19.0760, 'longitude': 72.8777},  # Mumbai
-                    permissions=['geolocation'],
-                    color_scheme='light',
                     extra_http_headers={
-                        'Accept-Language': 'en-IN,en-GB;q=0.9,en;q=0.8,hi;q=0.7',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'DNT': '1',
-                        'Referer': google_referer,
-                        'Upgrade-Insecure-Requests': '1',
-                        'Sec-Fetch-Dest': 'document',
-                        'Sec-Fetch-Mode': 'navigate',
-                        'Sec-Fetch-Site': 'cross-site',
-                        'Sec-Fetch-User': '?1',
+                        'Accept-Language': 'en-US,en;q=0.9',
                     }
                 )
 
                 page = await context.new_page()
                 await stealth_async(page)
 
-                # ── Scrape pages sequentially ──
+                # Scrape pages sequentially
                 for page_num in range(1, max_pages + 1):
                     if page_num > 1:
-                        delay = random.uniform(3, 6)
-                        self._add_log(f"Waiting {delay:.1f}s before next page...")
-                        await asyncio.sleep(delay)
+                        await asyncio.sleep(3)
 
                     offset = (page_num - 1) * 25
                     url = f"{base_url}&offset={offset}"
@@ -249,20 +220,12 @@ class HotelScraper:
 
                     try:
                         await page.goto(url, wait_until='domcontentloaded', timeout=30000)
-
-                        # Human-like: random scroll after load (isolated — failure here must NOT abort extraction)
-                        try:
-                            await asyncio.sleep(random.uniform(1.5, 3))
-                            scroll_amount = random.randint(300, 800)
-                            await page.evaluate(f"window.scrollBy(0, {scroll_amount})")
-                            await asyncio.sleep(random.uniform(0.5, 1.5))
-                        except Exception as scroll_err:
-                            logger.warning(f"Page {page_num}: scroll failed (continuing extraction): {scroll_err}")
+                        await asyncio.sleep(2)  # Brief wait for content
 
                         try:
                             await page.wait_for_selector('[data-testid="property-card"]', timeout=15000)
                         except PlaywrightTimeout:
-                            self._add_log(f"Page {page_num}: no property cards found (may be blocked).")
+                            self._add_log(f"Page {page_num}: no property cards found.")
                             continue
 
                         cards = await page.query_selector_all('[data-testid="property-card"]')
@@ -271,7 +234,7 @@ class HotelScraper:
                             if hotel:
                                 all_hotels.append(hotel)
 
-                        self._add_log(f"Page {page_num}: found {len(cards)} hotels so far.")
+                        self._add_log(f"Page {page_num}: found {len(cards)} hotels.")
 
                     except Exception as e:
                         logger.error(f"Error scraping page {page_num}: {e}")
