@@ -250,11 +250,14 @@ class HotelScraper:
                     try:
                         await page.goto(url, wait_until='domcontentloaded', timeout=30000)
 
-                        # Human-like: random scroll after load
-                        await asyncio.sleep(random.uniform(1.5, 3))
-                        scroll_amount = random.randint(300, 800)
-                        await page.evaluate(f"window.scrollBy(0, {scroll_amount})")
-                        await asyncio.sleep(random.uniform(0.5, 1.5))
+                        # Human-like: random scroll after load (isolated — failure here must NOT abort extraction)
+                        try:
+                            await asyncio.sleep(random.uniform(1.5, 3))
+                            scroll_amount = random.randint(300, 800)
+                            await page.evaluate(f"window.scrollBy(0, {scroll_amount})")
+                            await asyncio.sleep(random.uniform(0.5, 1.5))
+                        except Exception as scroll_err:
+                            logger.warning(f"Page {page_num}: scroll failed (continuing extraction): {scroll_err}")
 
                         try:
                             await page.wait_for_selector('[data-testid="property-card"]', timeout=15000)

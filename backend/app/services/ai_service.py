@@ -27,46 +27,51 @@ class AIService:
                 logger.error(f"Failed to initialize Gemini Client: {e}")
     
     async def _call_openrouter(self, prompt: str, model: str = "stepfun/step-3.5-flash:free", use_reasoning: bool = False) -> Optional[str]:
-        """Internal helper to call OpenRouter API"""
+        """Internal helper to call OpenRouter API with 1 retry on transient errors"""
         if not settings.OPENROUTER_API_KEY:
             return None
-            
-        try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                payload = {
-                    "model": model,
-                    "messages": [
-                        {"role": "user", "content": prompt}
-                    ]
-                }
-                
-                # Stepfun specific: reasoning support
-                if use_reasoning and "stepfun" in model:
-                    payload["reasoning"] = {"enabled": True}
-                
-                response = await client.post(
-                    url="https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-                        "Content-Type": "application/json",
-                    },
-                    content=json.dumps(payload).encode("utf-8")
-                )
-                response.raise_for_status()
-                result = response.json()
-                
-                message = result['choices'][0]['message']
-                content = message.get('content', '').strip()
-                
-                # If content is empty but reasoning is present, we might want to handle it (though usually it's in content)
-                if not content and 'reasoning_details' in message:
-                    logger.info("Found reasoning_details but no content, using reasoning as content")
-                    content = message.get('reasoning_details', '').strip()
-                    
-                return content
-        except Exception as e:
-            logger.error(f"OpenRouter call failed: {e}")
-            return None
+
+        for attempt in range(2):  # Try up to 2 times
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    payload = {
+                        "model": model,
+                        "messages": [
+                            {"role": "user", "content": prompt}
+                        ]
+                    }
+
+                    # Stepfun specific: reasoning support
+                    if use_reasoning and "stepfun" in model:
+                        payload["reasoning"] = {"enabled": True}
+
+                    response = await client.post(
+                        url="https://openrouter.ai/api/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+                            "Content-Type": "application/json",
+                        },
+                        content=json.dumps(payload).encode("utf-8")
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+
+                    message = result['choices'][0]['message']
+                    content = message.get('content', '').strip()
+
+                    # If content is empty but reasoning is present, we might want to handle it (though usually it's in content)
+                    if not content and 'reasoning_details' in message:
+                        logger.info("Found reasoning_details but no content, using reasoning as content")
+                        content = message.get('reasoning_details', '').strip()
+
+                    return content
+            except Exception as e:
+                logger.error(f"OpenRouter call failed (attempt {attempt + 1}/2): {e}")
+                if attempt == 0:
+                    import asyncio
+                    await asyncio.sleep(2)  # Brief pause before retry
+                    continue
+                return None
 
     async def generate_itinerary(self, trip: Trip) -> str:
         """Generate travel itinerary using OpenRouter (gpt-4o-mini)"""
