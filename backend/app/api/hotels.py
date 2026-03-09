@@ -59,24 +59,28 @@ async def search_hotels(request: HotelSearchRequest, session: AsyncSession = Dep
         scraper.clear_current_search()
         
         if not hotels_data:
-            scraper._add_log("AI analysis failed to find matching hotels.")
+            scraper._add_log("AI analysis returned no hotels — returning empty list.")
+            logger.warning("curate_hotels returned empty list")
             return []
-            
+
         scraper._add_log(f"Deep Search complete. Selected {len(hotels_data)} best hotels.")
-        
+        logger.info(f"Saving {len(hotels_data)} hotels to DB...")
+
         # 5. Save curated hotels to database and return
         hotels = []
         for hotel_data in hotels_data:
             hotel = Hotel(**hotel_data)
             session.add(hotel)
             hotels.append(hotel)
-        
+
         await session.commit()
-        
+        logger.info("DB commit successful")
+
         # Refresh all hotels to get their IDs
         for hotel in hotels:
             await session.refresh(hotel)
-        
+
+        logger.info(f"Returning {len(hotels)} hotels to frontend")
         return hotels
         
     except Exception as e:

@@ -174,37 +174,42 @@ Structure:
         """
 
         if settings.OPENROUTER_API_KEY:
-            logger.info(f"Using OpenRouter (gpt-4o-mini) to curate best {max_results} hotels for budget: {budget}")
+            logger.info(f"Using OpenRouter to curate best {max_results} hotels for budget: {budget}")
             response_text = await self._call_openrouter(prompt)
+            logger.info(f"OpenRouter raw response (first 300 chars): {repr(response_text[:300]) if response_text else 'EMPTY'}")
             if response_text:
-                if response_text.startswith("```json"):
-                    response_text = response_text[7:]
-                if response_text.startswith("```"):
-                    response_text = response_text[3:]
-                if response_text.endswith("```"):
-                    response_text = response_text[:-3]
-                response_text = response_text.strip()
-                
+                # Robust extraction: find the JSON array regardless of surrounding text
+                start = response_text.find('[')
+                end = response_text.rfind(']')
+                if start != -1 and end != -1 and end > start:
+                    response_text = response_text[start:end + 1]
+                else:
+                    logger.error(f"Could not find JSON array in OpenRouter response: {repr(response_text[:200])}")
+                    response_text = None
+
+            if response_text:
                 try:
                     selected_names = json.loads(response_text)
                     if not isinstance(selected_names, list):
                         raise ValueError("Response was not a JSON array")
-                        
+
+                    logger.info(f"AI selected hotel names: {selected_names}")
                     curated_hotels = []
                     for name in selected_names:
                         for h in unique_hotels:
                             if h["name"] == name:
                                 curated_hotels.append(h)
                                 break
-                                
+
                     if len(curated_hotels) < max_results:
                         for h in unique_hotels:
                             if h not in curated_hotels and len(curated_hotels) < max_results:
                                 curated_hotels.append(h)
-                                
+
+                    logger.info(f"Returning {len(curated_hotels)} curated hotels")
                     return curated_hotels
                 except Exception as e:
-                    logger.error(f"Failed to parse OpenRouter response: {e}")
+                    logger.error(f"Failed to parse OpenRouter response: {e} | text: {repr(response_text[:200])}")
 
         if not self.gemini_client or not settings.GEMINI_API_KEY:
             logger.warning("No AI API (OpenRouter/Gemini) configured. Returning top 5 hotels by default.")
