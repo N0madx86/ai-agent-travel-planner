@@ -181,7 +181,11 @@ class HotelScraper:
                 context = await browser.new_context(
                     user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                     viewport={'width': 1920, 'height': 1080},
-                    locale='en-IN'
+                    locale='en-IN',
+                    extra_http_headers={
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Referer': 'https://www.google.com/',
+                    }
                 )
                 page = await context.new_page()
                 await stealth_async(page)
