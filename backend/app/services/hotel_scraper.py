@@ -5,8 +5,6 @@ Fully integrated with the travel planner app
 
 import asyncio
 import json
-import random
-import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Union
@@ -20,15 +18,7 @@ from app.core.config import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Rotating user agent pool — realistic Chrome versions on Windows/Mac
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-]
+
 
 
 class HotelScraper:
@@ -159,7 +149,7 @@ class HotelScraper:
         checkout: datetime, 
         max_pages: int = 2
     ) -> List[Dict]:
-        """Scrape Booking.com sequentially, mimicking human browsing"""
+        """Scrape Booking.com pages in parallel with stealth"""
         
         checkin_str = checkin.strftime('%Y-%m-%d')
         checkout_str = checkout.strftime('%Y-%m-%d')
@@ -169,120 +159,70 @@ class HotelScraper:
         if nights < 1:
             nights = 1
 
-        self._add_log(f"Launching sequential scrape for {destination} ({max_pages} pages)...")
+        self._add_log(f"Launching parallel scrape for {destination} ({max_pages} pages)...")
         
         all_hotels = []
-
-        # ── Start Xvfb virtual display for headful mode on Linux ──
-        display_proc = None
-        import sys
-        if sys.platform != 'win32':
-            try:
-                display_proc = subprocess.Popen(
-                    ['Xvfb', ':99', '-screen', '0', '1920x1080x24', '-ac'],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-                )
-                os.environ['DISPLAY'] = ':99'
-                await asyncio.sleep(1)  # Give Xvfb time to start
-                logger.info("Xvfb virtual display started for headful mode")
-            except Exception as e:
-                logger.warning(f"Could not start Xvfb, falling back to headless: {e}")
-                display_proc = None
-
-        use_headless = display_proc is None
-
-        # ── Realistic Google referral URL ──
-        dest_query = destination.replace(' ', '+')
-        google_referer = f"https://www.google.com/search?q=hotels+in+{dest_query}&num=10"
-
-        try:
-            async with async_playwright() as p:
-                browser = await p.chromium.launch(
-                    headless=use_headless,
-                    args=[
-                        '--disable-blink-features=AutomationControlled',
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-gpu',
-                        '--disable-software-rasterizer',
-                        '--disable-extensions',
-                        '--window-size=1920,1080',
-                    ]
-                )
-
-                # ── Rich browser fingerprint ──
+        
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=[
+                    '--disable-blink-features=AutomationControlled',
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--disable-software-rasterizer',
+                    '--disable-extensions',
+                ]
+            )
+            
+            async def scrape_page(page_num: int):
                 context = await browser.new_context(
-                    user_agent=random.choice(USER_AGENTS),
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                     viewport={'width': 1920, 'height': 1080},
-                    locale='en-IN',
-                    timezone_id='Asia/Kolkata',
-                    geolocation={'latitude': 19.0760, 'longitude': 72.8777},  # Mumbai
-                    permissions=['geolocation'],
-                    color_scheme='light',
-                    extra_http_headers={
-                        'Accept-Language': 'en-IN,en-GB;q=0.9,en;q=0.8,hi;q=0.7',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'DNT': '1',
-                        'Referer': google_referer,
-                        'Upgrade-Insecure-Requests': '1',
-                        'Sec-Fetch-Dest': 'document',
-                        'Sec-Fetch-Mode': 'navigate',
-                        'Sec-Fetch-Site': 'cross-site',
-                        'Sec-Fetch-User': '?1',
-                    }
+                    locale='en-IN'
                 )
-
                 page = await context.new_page()
                 await stealth_async(page)
-
-                # ── Scrape pages sequentially ──
-                for page_num in range(1, max_pages + 1):
-                    if page_num > 1:
-                        delay = random.uniform(3, 6)
-                        self._add_log(f"Waiting {delay:.1f}s before next page...")
-                        await asyncio.sleep(delay)
-
-                    offset = (page_num - 1) * 25
-                    url = f"{base_url}&offset={offset}"
+                
+                offset = (page_num - 1) * 25
+                url = f"{base_url}&offset={offset}"
+                
+                try:
                     self._add_log(f"Scraping page {page_num} (offset {offset})...")
-
+                    await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+                    
                     try:
-                        await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+                        await page.wait_for_selector('[data-testid="property-card"]', timeout=15000)
+                    except PlaywrightTimeout:
+                        self._add_log(f"Page {page_num}: no property cards found.")
+                        return []
+                        
+                    cards = await page.query_selector_all('[data-testid="property-card"]')
+                    page_hotels = []
+                    for card in cards:
+                        hotel = await self._extract_hotel_data(card, nights)
+                        if hotel:
+                            page_hotels.append(hotel)
+                    
+                    self._add_log(f"Page {page_num}: found {len(page_hotels)} hotels.")
+                    return page_hotels
+                except Exception as e:
+                    logger.error(f"Error scraping page {page_num}: {e}")
+                    return []
+                finally:
+                    await context.close()
 
-                        # Human-like: random scroll after load (isolated — failure here must NOT abort extraction)
-                        try:
-                            await asyncio.sleep(random.uniform(1.5, 3))
-                            scroll_amount = random.randint(300, 800)
-                            await page.evaluate(f"window.scrollBy(0, {scroll_amount})")
-                            await asyncio.sleep(random.uniform(0.5, 1.5))
-                        except Exception as scroll_err:
-                            logger.warning(f"Page {page_num}: scroll failed (continuing extraction): {scroll_err}")
-
-                        try:
-                            await page.wait_for_selector('[data-testid="property-card"]', timeout=15000)
-                        except PlaywrightTimeout:
-                            self._add_log(f"Page {page_num}: no property cards found (may be blocked).")
-                            continue
-
-                        cards = await page.query_selector_all('[data-testid="property-card"]')
-                        for card in cards:
-                            hotel = await self._extract_hotel_data(card, nights)
-                            if hotel:
-                                all_hotels.append(hotel)
-
-                        self._add_log(f"Page {page_num}: found {len(cards)} hotels so far.")
-
-                    except Exception as e:
-                        logger.error(f"Error scraping page {page_num}: {e}")
-                        continue
-
-                await context.close()
-                await browser.close()
-        finally:
-            if display_proc:
-                display_proc.terminate()
-
+            # Launch all page scrapes in parallel
+            tasks = [scrape_page(i) for i in range(1, max_pages + 1)]
+            results = await asyncio.gather(*tasks)
+            
+            for page_hotels in results:
+                all_hotels.extend(page_hotels)
+                
+            await browser.close()
+            
         # De-duplicate results by name
         unique_hotels = []
         seen_names = set()
@@ -291,7 +231,7 @@ class HotelScraper:
                 unique_hotels.append(h)
                 seen_names.add(h["name"])
 
-        self._add_log(f"Sequential scrape complete. Found {len(unique_hotels)} unique hotels.", len(unique_hotels))
+        self._add_log(f"Parallel scrape complete. Found {len(unique_hotels)} unique hotels.", len(unique_hotels))
         return unique_hotels
     
     async def _extract_hotel_data(self, card, nights: int = 1) -> Optional[Dict]:
