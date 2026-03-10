@@ -8,6 +8,8 @@
    CSS VARIABLES — Dark Mode (default / :root)
 ═══════════════════════════════════════════════════════ */
 :root {
+  color-scheme: dark;
+
   /* Ocean Color Palette */
   --color-ocean-50: #e8f4ff;
   --color-ocean-100: #d1ecff;
@@ -37,12 +39,14 @@
   --badge-color: #7ec8f6;
   --input-bg: rgba(2, 13, 30, 0.85);
   --input-border: rgba(56, 168, 245, 0.22);
+  --accent-blue: #56a8f5;
 }
 
 /* ════════════════════════════════════════════════════
    CSS VARIABLES — Light Mode
 ═══════════════════════════════════════════════════════ */
 .light-mode {
+  color-scheme: light;
   --bg-primary: #e0f2fe;
   /* sky-blue base */
   --text-main: #0c1a2e;
@@ -239,6 +243,17 @@
   .input-field option {
     background: #020d1e;
     color: #d1ecff;
+  }
+
+  /* Calendar picker icon — invert in dark mode for visibility */
+  .input-field::-webkit-calendar-picker-indicator {
+    filter: invert(0.7) sepia(0.3) hue-rotate(180deg) brightness(1.2);
+    cursor: pointer;
+  }
+
+  .light-mode .input-field::-webkit-calendar-picker-indicator {
+    filter: none;
+    cursor: pointer;
   }
 
   /* ── Gradient text */

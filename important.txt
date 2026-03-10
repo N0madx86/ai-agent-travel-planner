@@ -1,0 +1,148 @@
+How Booking Uses GraphQL (Conceptual Overview)
+
+When a browser loads a search page like:
+
+https://www.booking.com/searchresults.html?ss=Paris
+
+the page initially loads HTML, then the frontend sends background requests to an internal API (often GraphQL-style payloads) to fetch:
+
+hotel lists
+
+prices
+
+filters
+
+pagination data
+
+reviews
+
+The flow looks like this:
+
+Browser
+   ↓
+searchresults.html
+   ↓
+internal API request (GraphQL/JSON)
+   ↓
+JSON hotel data returned
+
+Your Playwright scraper currently extracts data from the rendered HTML, but those internal calls return structured JSON, which is much easier to process.
+
+How Developers Discover These Requests
+
+Normally the process is:
+
+Open Chrome DevTools
+
+Go to Network tab
+
+Filter by Fetch/XHR
+
+Perform a search on Booking
+
+Look for requests returning JSON hotel data
+
+These requests contain:
+
+destination ID
+
+check-in / check-out
+
+currency
+
+pagination offset
+
+That’s where the structured hotel results come from.
+
+Why Direct Calls Often Fail
+
+If you try to call those endpoints directly from a backend server, the request will usually fail because the browser normally includes:
+
+cookies
+
+session identifiers
+
+CSRF tokens
+
+request fingerprints
+
+headers tied to the browsing session
+
+Without them, the server returns errors like:
+
+403 Forbidden
+503 Service unavailable
+
+which is similar to the issue you’re seeing on Render.
+
+Practical Options for Your Travel Planner
+
+Since you’re building a hotel search feature, developers usually use one of these approaches:
+
+1️⃣ Official partner APIs (most stable)
+
+Examples:
+
+Expedia Rapid API
+
+Amadeus travel APIs
+
+Travelpayouts
+
+Booking affiliate feeds
+
+These provide structured hotel data legally and reliably.
+
+2️⃣ Headless browser scraping (what you already do)
+
+Your Playwright scraper is actually a standard approach.
+
+Improvements that help:
+
+sequential page scraping instead of parallel
+
+fewer pages
+
+rotating IPs or proxies
+
+caching results
+
+3️⃣ Hybrid approach
+
+Common startup architecture:
+
+User search
+      ↓
+Cache check
+      ↓
+Scraper worker
+      ↓
+Store results in database
+      ↓
+Serve cached results to users
+
+This reduces how often you hit Booking.
+
+Important Note for Render
+
+Even with GraphQL-style requests, Render’s datacenter IP will still be detected, so the underlying problem (cloud IP detection) can remain.
+
+That’s why production scrapers usually run with:
+
+rotating proxies
+
+distributed workers
+
+heavy caching
+
+✅ Good news: your current Playwright scraper is already quite advanced (async, stealth, pagination, extraction). The main thing to adjust is how frequently and from where the requests originate, not just the scraping method.
+
+✅ If you want, I can also help with:
+
+making your scraper much harder to block
+
+reducing requests by 90% using caching
+
+designing the scraping architecture for your AI travel planner
+
+or debugging why Render specifically triggers the block

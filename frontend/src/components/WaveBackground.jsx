@@ -12,7 +12,7 @@ import { useTheme } from '../context/ThemeContext';
  */
 export default function WaveBackground() {
     const canvasRef = useRef(null);
-    const { isDarkMode, isSurfacing } = useTheme();
+    const { isDarkMode, isSurfacing, transitionDirection } = useTheme();
 
     // Stable ref for particles so we don't recreate on every render
     const state = useRef({
@@ -167,7 +167,7 @@ export default function WaveBackground() {
         // ───────────────────────────────────────────────────
         const drawSurfacing = (W, H, t) => {
             // Going dark→light: teal surge. Going light→dark: deep navy surge.
-            const goingToLight = isDarkMode; // about to switch to light
+            const goingToLight = transitionDirection === 'to-light';
             ctx.fillStyle = goingToLight ? 'rgba(6, 182, 212, 0.96)' : 'rgba(2, 13, 30, 0.97)';
             ctx.fillRect(0, 0, W, H);
 
@@ -235,7 +235,7 @@ export default function WaveBackground() {
             cancelAnimationFrame(raf);
             window.removeEventListener('resize', resize);
         };
-    }, [isDarkMode, isSurfacing]);
+    }, [isDarkMode, isSurfacing, transitionDirection]);
 
     return (
         <div className="wave-bg" aria-hidden="true">

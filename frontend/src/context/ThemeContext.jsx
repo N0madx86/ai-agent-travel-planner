@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 const ThemeContext = createContext();
 
@@ -11,6 +11,9 @@ export const ThemeProvider = ({ children }) => {
     });
 
     const [isSurfacing, setIsSurfacing] = useState(false);
+    // 'to-light' | 'to-dark' | null — locked at toggle time so WaveBackground
+    // always knows which direction to animate, even after isDarkMode flips.
+    const [transitionDirection, setTransitionDirection] = useState(null);
 
     // Apply to <html> so :root → .light-mode CSS variable cascade works everywhere
     useEffect(() => {
@@ -19,15 +22,22 @@ export const ThemeProvider = ({ children }) => {
     }, [isDarkMode]);
 
     const toggleTheme = () => {
+        // Lock direction BEFORE flipping isDarkMode
+        const direction = isDarkMode ? 'to-light' : 'to-dark';
+        setTransitionDirection(direction);
         setIsSurfacing(true);
+
         setTimeout(() => {
             setIsDarkMode(prev => !prev);
-            setTimeout(() => setIsSurfacing(false), 700);
+            setTimeout(() => {
+                setIsSurfacing(false);
+                setTransitionDirection(null);
+            }, 700);
         }, 350);
     };
 
     return (
-        <ThemeContext.Provider value={{ isDarkMode, toggleTheme, isSurfacing }}>
+        <ThemeContext.Provider value={{ isDarkMode, toggleTheme, isSurfacing, transitionDirection }}>
             {children}
         </ThemeContext.Provider>
     );

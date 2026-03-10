@@ -121,14 +121,14 @@ export default function PlanTripPage() {
                 <input type="checkbox" checked={useCustomBudget}
                   onChange={handleCustomBudgetToggle}
                   className="w-3.5 h-3.5 rounded cursor-pointer accent-ocean-500" />
-                <span className="text-xs font-medium tracking-wide" style={{ color: 'rgba(126,200,246,0.6)' }}>Set a specific amount</span>
+                <span className="text-xs font-medium tracking-wide" style={{ color: 'var(--text-sub)' }}>Set a specific amount</span>
               </label>
               {useCustomBudget && (
                 <div className="mt-2.5 relative animate-fade-in">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: '#0d8de8' }}>₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--color-ocean-500)' }}>₹</span>
                   <input type="number" value={customBudget} onChange={handleCustomBudgetChange}
                     placeholder="e.g. 25000" className="input-field pl-7" min="0" />
-                  <p className="text-xs mt-1.5" style={{ color: 'rgba(126,200,246,0.35)' }}>Total budget for all travelers, in ₹</p>
+                  <p className="text-xs mt-1.5" style={{ color: 'var(--text-sub)', opacity: 0.6 }}>Total budget for all travelers, in ₹</p>
                 </div>
               )}
             </div>
@@ -147,14 +147,14 @@ export default function PlanTripPage() {
                 <button key={interest} type="button" onClick={() => toggleInterest(interest)}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${selectedInterests.includes(interest) ? 'scale-105' : ''}`}
                   style={selectedInterests.includes(interest) ? {
-                    background: 'linear-gradient(135deg, #0060c7, #0d8de8)',
-                    color: '#e8f4ff',
+                    background: 'var(--btn-primary-bg)',
+                    color: 'var(--btn-primary-color)',
                     boxShadow: '0 2px 14px rgba(13,141,232,0.45)',
-                    border: '1px solid rgba(56,168,245,0.4)',
+                    border: '1px solid var(--badge-border)',
                   } : {
-                    background: 'rgba(4,21,41,0.7)',
-                    color: 'rgba(126,200,246,0.55)',
-                    border: '1px solid rgba(56,168,245,0.14)',
+                    background: 'var(--badge-bg)',
+                    color: 'var(--badge-color)',
+                    border: '1px solid var(--badge-border)',
                   }}>
                   {interest}
                 </button>

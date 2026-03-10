@@ -49,4 +49,10 @@ export const imagesAPI = {
   getPlaceImage: (query) => api.get('/api/images/place', { params: { q: query } }),
 };
 
+// ─── Keep-alive: ping backend every 13 min to prevent Render sleep ───
+const KEEP_ALIVE_INTERVAL = 13 * 60 * 1000; // 13 minutes
+setInterval(() => {
+  api.get('/health').catch(() => {}); // silent fail — best-effort
+}, KEEP_ALIVE_INTERVAL);
+
 export default api;
