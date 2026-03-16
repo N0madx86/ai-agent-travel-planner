@@ -222,8 +222,9 @@ class HotelScraper:
         checkin: Union[datetime, str],
         checkout: Union[datetime, str],
         budget: str = "Mid-range",
-        max_pages: int = 3
+        max_pages: int = 2
     ) -> List[Dict]:
+
         """
         City-scoped cache search:
 
@@ -287,6 +288,7 @@ class HotelScraper:
         budget: str = "Mid-range",
         max_pages: int = 2
     ) -> List[Dict]:
+
         """Scrape Booking.com sequentially with stealth and context rotation"""
         
         checkin_str = checkin.strftime('%Y-%m-%d')
@@ -394,25 +396,31 @@ class HotelScraper:
             if display_proc:
                 display_proc.terminate()
 
-        # De-duplicate by URL path (more reliable than name — same hotel can appear
-        # on multiple pages with identical names but Booking adds different tracking params).
-        # Strip query string so only the stable path (/hotel/in/...) is compared.
-        # Fall back to name if booking_url is empty.
         unique_hotels = []
         seen_keys: set = set()
+        duplicate_count: int = 0
+
         for h in all_hotels:
             url = h.get("booking_url", "")
             if url:
-                from urllib.parse import urlparse
-                key = urlparse(url).path  # e.g. /hotel/in/goa-golden-palace.en-gb.html
+                try:
+                    from urllib.parse import urlparse
+                    key = urlparse(url).path
+                except Exception:
+                    key = h["name"]
             else:
                 key = h["name"]
+            
             if key not in seen_keys:
                 unique_hotels.append(h)
                 seen_keys.add(key)
+            else:
+                duplicate_count += 1
+                logger.debug(f"Duplicate found: {key}")
 
-        self._add_log(f"Scrape complete. Found {len(unique_hotels)} unique hotels.", len(unique_hotels))
+        self._add_log(f"Scrape complete. Found {len(unique_hotels)} unique hotels ({duplicate_count} duplicates skipped).", len(unique_hotels))
         return unique_hotels
+
     
     async def _extract_hotel_data(self, card, nights: int = 1) -> Optional[Dict]:
         """Extract hotel data matching Hotel model schema"""
