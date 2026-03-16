@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Calendar, Users, IndianRupee, Heart, Loader2, Sparkles } from 'lucide-react';
 import { tripsAPI } from '../services/api';
@@ -6,6 +6,11 @@ import { format, addDays } from 'date-fns';
 import { useRipple } from '../hooks/useAnimations';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://tabi-uul5.onrender.com';
+
+// Photon geocoding API (free, no key)
+const PHOTON_URL = 'https://photon.komoot.io/api/';
+const ALLOWED_PLACE_TYPES = new Set(['city', 'town', 'village', 'locality', 'suburb', 'district', 'borough']);
+
 
 // Simple user-facing status messages (cycle while searching)
 const SEARCH_PHRASES = [
@@ -47,6 +52,51 @@ export default function PlanTripPage() {
   const [customBudget, setCustomBudget] = useState('');
   const [useCustomBudget, setUseCustomBudget] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState([]);
+
+  // ── Photon autocomplete state ─────────────────────────────────────────────
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceTimer = useRef(null);
+  const suggestionListRef = useRef(null);
+
+  const fetchSuggestions = useCallback(async (query) => {
+    if (!query || query.length < 2) { setSuggestions([]); return; }
+    try {
+      const res = await fetch(`${PHOTON_URL}?q=${encodeURIComponent(query)}&limit=6&lang=en`);
+      const json = await res.json();
+      const results = (json.features || [])
+        .filter(f => ALLOWED_PLACE_TYPES.has(f.properties?.type))
+        .map(f => {
+          const p = f.properties;
+          const parts = [p.name, p.state, p.country].filter(Boolean);
+          return { label: parts.join(', '), city: p.name, country: p.country };
+        })
+        .filter((v, i, arr) => arr.findIndex(x => x.label === v.label) === i) // dedupe
+        .slice(0, 5);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+    } catch {
+      setSuggestions([]);
+    }
+  }, []);
+
+  const handleDestinationChange = (e) => {
+    const val = e.target.value;
+    setFormData(prev => ({ ...prev, destination: val }));
+    clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => fetchSuggestions(val), 300);
+  };
+
+  const handleSuggestionSelect = (label) => {
+    setFormData(prev => ({ ...prev, destination: label }));
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
+
+  const handleDestinationKeyDown = (e) => {
+    if (e.key === 'Escape') setShowSuggestions(false);
+  };
+
 
   const { rippleRef, createRipple } = useRipple();
 
@@ -149,12 +199,46 @@ export default function PlanTripPage() {
           className="card p-8 sm:p-10 space-y-7 animate-slide-up">
 
           {/* Destination */}
-          <div>
+          <div className="relative">
             <FieldLabel icon={MapPin} label="Destination" />
-            <input type="text" name="destination" value={formData.destination}
-              onChange={handleChange}
-              placeholder="e.g. Goa, India  ·  Kyoto, Japan  ·  Lisbon"
-              className="input-field text-base" required />
+            <input
+              type="text"
+              name="destination"
+              id="destination-input"
+              value={formData.destination}
+              onChange={handleDestinationChange}
+              onKeyDown={handleDestinationKeyDown}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+              placeholder="e.g. Goa, Calangute  ·  Kyoto  ·  Lisbon"
+              className="input-field text-base"
+              required
+              autoComplete="off"
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <ul
+                ref={suggestionListRef}
+                className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden shadow-2xl"
+                style={{
+                  background: 'var(--card-bg)',
+                  border: '1px solid var(--badge-border)',
+                }}
+              >
+                {suggestions.map((s, i) => (
+                  <li
+                    key={i}
+                    onMouseDown={() => handleSuggestionSelect(s.label)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-sm transition-colors duration-150"
+                    style={{ color: 'var(--text-main)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--badge-bg)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-ocean-500)' }} />
+                    {s.label}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Dates */}
