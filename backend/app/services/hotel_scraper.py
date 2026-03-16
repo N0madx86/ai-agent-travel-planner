@@ -277,7 +277,7 @@ class HotelScraper:
             specific: List[Dict] = await asyncio.to_thread(
                 self._run_scrape_booking_sync,
                 destination, checkin_dt, checkout_dt, budget,
-                max_pages=3  # targeted, fewer pages
+                max_pages=2  # focused neighborhood scrape
             ) or []
             merged = self._merge_unique(filtered, specific)
 
