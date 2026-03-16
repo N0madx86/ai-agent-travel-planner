@@ -359,8 +359,9 @@ class HotelScraper:
                         await asyncio.sleep(3)
 
                     offset = (page_num - 1) * 25
-                    url = f"{base_url}&offset={offset}"
-                    self._add_log(f"Scraping page {page_num} (offset {offset})...")
+                    url = f"{base_url}&offset={offset}&rows=25"
+                    self._add_log(f"Scraping page {page_num} (offset {offset}, rows 25)...")
+
 
                     try:
                         await page.goto(url, wait_until='domcontentloaded', timeout=60000)
@@ -373,12 +374,15 @@ class HotelScraper:
                             continue
 
                         cards = await page.query_selector_all('[data-testid="property-card"]')
+                        initial_count = len(all_hotels)
                         for card in cards:
                             hotel = await self._extract_hotel_data(card, nights)
                             if hotel:
                                 all_hotels.append(hotel)
 
-                        self._add_log(f"Page {page_num}: found {len(cards)} hotels.")
+                        new_count = len(all_hotels) - initial_count
+                        self._add_log(f"Page {page_num}: found {len(cards)} cards ({new_count} hotels extracted).")
+
 
                     except Exception as e:
                         logger.error(f"Error scraping page {page_num}: {e}")

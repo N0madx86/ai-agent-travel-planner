@@ -23,7 +23,8 @@ class HotelSearchRequest(BaseModel):
     budget: str = "Mid-range"  # Add budget for Deep Search
     max_results: int = 5      # AI returns strictly 5
 
-    max_pages: int = 2        # Number of Booking.com pages to scrape (keep low on free tier)
+    max_pages: int = 3        # Number of Booking.com pages to scrape
+
 
 @router.get("/search/status")
 async def search_status():
