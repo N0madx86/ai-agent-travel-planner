@@ -159,33 +159,41 @@ Structure:
             hotels_context.append(entry)
             
         nights_str = f"The stay is from {checkin_date} to {checkout_date}. Calculate total nights to determine total stay price." if checkin_date and checkout_date else "Consider the price per night if exact dates are missing."
+        
+        MAX_RESULTS = 5  # Always exactly 5 — one per category
             
         prompt = f"""
-        You are an expert travel agent selecting the best hotels for a user.
-        Budget level: "{budget}". This is the TOTAL budget for the entire stay, not per night.
-        {nights_str}
+        You are an expert travel agent. Select exactly 5 hotels from the list below — one per category.
 
-        You have {len(hotels_context)} scraped properties (JSON below).
-        Each entry: n=name, p=price_per_night (INR), r=rating (out of 10), l=location/address.
+        User budget: "{budget}" (TOTAL stay budget, not per night). {nights_str}
 
+        Evaluation criteria — apply ALL four strictly to every selection:
+        1. Budget match   — price must align with the "{budget}" level
+        2. Rating         — higher scores preferred within budget tier  
+        3. Location       — proximity/relevance to the searched area
+        4. Value for money — best rating-to-price ratio
+
+        Budget tier guide:
+        - "Luxury"/"Premium"  → highest-priced, top-rated (4-5 star equivalent)
+        - "Mid-range"         → solid quality, reasonable price — not cheapest, not priciest
+        - "Budget"/"Economy"  → most affordable, rating ≥ 6.5
+        - Numeric (e.g. "5000") → max TOTAL price = price_per_night × nights
+
+        {len(hotels_context)} properties to choose from (n=name, p=price/night INR, r=rating/10, l=location):
         {json.dumps(hotels_context, ensure_ascii=False)}
 
-        Select EXACTLY 5 hotels and assign each one a unique category from this fixed list:
-        - "Best Overall"   → Best balance of price, rating, and location
-        - "Budget Pick"    → Most affordable with acceptable quality (rating 6.5+)
-        - "Best Location"  → Located closest to the main area / most central
-        - "Highest Rated"  → Highest review score regardless of price
-        - "Best Value"     → Great rating relative to its price (value for money)
+        Assign EXACTLY one of these categories to each selected hotel (each category used once):
+        - "Best Overall"   → Best balance of all 4 criteria (ideal for first-timers)
+        - "Budget Pick"    → Cheapest reliable option, rating ≥ 6.5 (for budget travellers)
+        - "Best Location"  → Most central / closest to the area (for foodies & explorers)
+        - "Highest Rated"  → Top review score regardless of price (for quality-conscious travellers)
+        - "Best Value"     → Best rating-to-price ratio (for smart spenders)
 
-        Budget rules:
-        - "Luxury"/"Premium": favor higher-priced, top-rated hotels (4-5 star quality)
-        - "Mid-range": good value, solid quality — neither cheapest nor most expensive
-        - "Budget"/"Economy": affordable options, rating 6.5+
-        - If "{budget}" is a number (e.g. "5000"), treat it as max TOTAL price (price_per_night × nights)
-
-        Each of the 5 categories must appear exactly once. Names must exactly match the JSON above.
-
-        Return ONLY a raw JSON array of 5 objects, no markdown:
+        Rules:
+        - All 5 categories must appear exactly once
+        - If fewer than 5 hotels exist, assign as many categories as there are hotels
+        - Names must exactly match the JSON data above
+        - Return ONLY a raw JSON array of objects, no markdown:
         [{{"name": "Hotel A", "category": "Best Overall"}}, ...]
         """
 
