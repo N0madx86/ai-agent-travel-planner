@@ -121,11 +121,13 @@ Structure:
 
         return "Error: Failed to generate itinerary. Please check API configuration."
 
-    async def curate_hotels(self, budget: str, hotels_file_path: str, checkin_date: str = "", checkout_date: str = "", max_results: int = 5) -> List[Dict]:
+    async def curate_hotels(self, budget: str, hotels_file_path: str, checkin_date: str = "", checkout_date: str = "") -> List[Dict]:
         """
         Use OpenRouter or Gemini to select the best hotels based on budget from the scraped data.
         Falls back to a naive selection if no AI is available.
         """
+        STRICT_MAX = 5  # User requirement: exactly 5 hotels
+        
         current_search_file = Path(hotels_file_path)
         if not current_search_file.exists():
             logger.error(f"Hotels file not found: {hotels_file_path}")
@@ -145,6 +147,7 @@ Structure:
         # Remove duplicate hotels
         unique_hotels_dict = {h['name']: h for h in hotels}
         unique_hotels = list(unique_hotels_dict.values())
+
         
         # Prepare context for AI models
         # Minimal fields to save tokens
@@ -159,8 +162,7 @@ Structure:
             hotels_context.append(entry)
             
         nights_str = f"The stay is from {checkin_date} to {checkout_date}. Calculate total nights to determine total stay price." if checkin_date and checkout_date else "Consider the price per night if exact dates are missing."
-        
-        MAX_RESULTS = 5  # Always exactly 5 — one per category
+
             
         prompt = f"""
         You are an expert travel agent. Select exactly 5 hotels from the list below — one per category.
@@ -198,7 +200,8 @@ Structure:
         """
 
         if settings.OPENROUTER_API_KEY:
-            logger.info(f"Using OpenRouter to curate best {max_results} hotels for budget: {budget}")
+            logger.info(f"Using OpenRouter to curate best {STRICT_MAX} hotels for budget: {budget}")
+
             response_text = await self._call_openrouter(prompt)
             logger.info(f"OpenRouter raw response (first 300 chars): {repr(response_text[:300]) if response_text else 'EMPTY'}")
             if response_text:
@@ -218,17 +221,19 @@ Structure:
                         raise ValueError("Response was not a JSON array")
 
                     logger.info(f"AI selected hotels: {selected}")
-                    curated_hotels = self._build_curated(selected, unique_hotels, max_results)
+                    curated_hotels = self._build_curated(selected, unique_hotels)
                     logger.info(f"Returning {len(curated_hotels)} curated hotels")
                     return curated_hotels
+
                 except Exception as e:
                     logger.error(f"Failed to parse OpenRouter response: {e} | text: {repr(response_text[:200])}")
 
         if not self.gemini_client or not settings.GEMINI_API_KEY:
             logger.warning("No AI API configured. Returning top 5 hotels with default categories.")
-            return self._assign_default_categories(unique_hotels[:max_results])
+            return self._assign_default_categories(unique_hotels[:STRICT_MAX])
             
-        logger.info(f"Using Gemini to curate best {max_results} hotels out of {len(unique_hotels)} for budget: {budget}")
+        logger.info(f"Using Gemini to curate best {STRICT_MAX} hotels out of {len(unique_hotels)} for budget: {budget}")
+
         
         try:
             response = self.gemini_client.models.generate_content(
@@ -249,11 +254,12 @@ Structure:
             if not isinstance(selected, list):
                 raise ValueError("Response was not a JSON array")
 
-            return self._build_curated(selected, unique_hotels, max_results)
+            return self._build_curated(selected, unique_hotels)
             
         except Exception as e:
             logger.error(f"Gemini curation failed: {e}. Falling back to default selection.")
-            return self._assign_default_categories(unique_hotels[:max_results])
+            return self._assign_default_categories(unique_hotels[:STRICT_MAX])
+
 
     # ── Curation helpers ─────────────────────────────────────────────────────
 
@@ -261,12 +267,14 @@ Structure:
         "Best Overall", "Budget Pick", "Best Location", "Highest Rated", "Best Value"
     ]
 
-    def _build_curated(self, selected: list, unique_hotels: list, max_results: int) -> list:
+    def _build_curated(self, selected: list, unique_hotels: list) -> list:
         """
         Map AI response (list of {name, category} dicts OR plain name strings)
         back to full hotel dicts, injecting the category field.
         """
+        STRICT_MAX = 5
         hotel_by_name = {h["name"]: h for h in unique_hotels}
+
         curated: list = []
         used_names: set = set()
 
@@ -286,10 +294,11 @@ Structure:
                 curated.append(h)
                 used_names.add(name)
 
-        # Pad with remaining hotels if AI returned fewer than max_results
-        if len(curated) < max_results:
+        # Pad with remaining hotels if AI returned fewer than STRICT_MAX
+        if len(curated) < STRICT_MAX:
             for h in unique_hotels:
-                if h["name"] not in used_names and len(curated) < max_results:
+                if h["name"] not in used_names and len(curated) < STRICT_MAX:
+
                     hc = dict(h)
                     idx = len(curated)
                     hc["category"] = self._DEFAULT_CATEGORIES[idx] if idx < len(self._DEFAULT_CATEGORIES) else ""

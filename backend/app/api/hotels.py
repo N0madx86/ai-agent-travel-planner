@@ -21,7 +21,8 @@ class HotelSearchRequest(BaseModel):
     checkin: date
     checkout: date
     budget: str = "Mid-range"  # Add budget for Deep Search
-    max_results: int = 5      # AI returns top 5
+    max_results: int = 5      # AI returns strictly 5
+
     max_pages: int = 2        # Number of Booking.com pages to scrape (keep low on free tier)
 
 @router.get("/search/status")
@@ -103,9 +104,9 @@ async def search_hotels(request: HotelSearchRequest, session: AsyncSession = Dep
             budget=request.budget,
             hotels_file_path=str(scraper.current_search_file),
             checkin_date=request.checkin.isoformat(),
-            checkout_date=request.checkout.isoformat(),
-            max_results=request.max_results
+            checkout_date=request.checkout.isoformat()
         )
+
         
         # 4. Clean up temporary JSON
         scraper.clear_current_search()
