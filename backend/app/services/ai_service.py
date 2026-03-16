@@ -150,36 +150,43 @@ Structure:
         # Minimal fields to save tokens
         hotels_context = []
         for h in unique_hotels:
-            hotels_context.append({
+            entry = {
                 "n": h["name"],
                 "p": round(h["price_per_night"]),
                 "r": h["rating"],
-                "l": h["location"]
-            })
+                "l": h.get("address") or h["location"],   # prefer full address for context
+            }
+            hotels_context.append(entry)
             
-        nights_str = f"The stay is from {checkin_date} to {checkout_date}. You must calculate the total nights to determine the total stay price." if checkin_date and checkout_date else "Consider the price per night if exact dates are missing."
+        nights_str = f"The stay is from {checkin_date} to {checkout_date}. Calculate total nights to determine total stay price." if checkin_date and checkout_date else "Consider the price per night if exact dates are missing."
             
         prompt = f"""
-        You are an expert travel agent. The user is looking for a hotel.
-        Their budget level or constraint is verbatim: "{budget}". This refers to the TOTAL budget for the entire stay, not per night.
+        You are an expert travel agent selecting the best hotels for a user.
+        Budget level: "{budget}". This is the TOTAL budget for the entire stay, not per night.
         {nights_str}
-        
-        I have scraped a list of {len(hotels_context)} properties. Here is the JSON data:
+
+        You have {len(hotels_context)} scraped properties (JSON below).
+        Each entry: n=name, p=price_per_night (INR), r=rating (out of 10), l=location/address.
+
         {json.dumps(hotels_context, ensure_ascii=False)}
-        
-        Please select the top {max_results} best hotels from this list that fit the "{budget}" level.
-        - Rules:
-        1. Budget level guide (adapt to local pricing — what's "mid-range" varies by destination):
-           - "Luxury"/"Premium": Favor the higher-priced, top-rated hotels. Think 4-5 star quality.
-           - "Mid-range"/"Moderate": Pick hotels that offer good value with solid quality — not the cheapest or most expensive. Aim for well-rated hotels at reasonable prices for the destination.
-           - "Budget"/"Cheap"/"Economy": Favor the more affordable options, but still with acceptable ratings (6.5+).
-           - If "{budget}" contains a specific number (e.g., "5000" or "under 10000"), treat it as a maximum TOTAL price. Total Price = price_per_night × number_of_nights.
-        2. Always prefer higher-rated hotels within the budget tier. Names must exactly match the provided JSON array.
-        3. If the budget is heavily unrealistic and ZERO hotels qualify, return an empty array [].
-        
-        Return ONLY a raw JSON array containing exactly the names of the selected hotels as strings (up to {max_results}).
-        Example: ["Hotel A", "Hotel B", "Hotel C"]
-        Do not include markdown blocks, just the JSON array.
+
+        Select EXACTLY 5 hotels and assign each one a unique category from this fixed list:
+        - "Best Overall"   → Best balance of price, rating, and location
+        - "Budget Pick"    → Most affordable with acceptable quality (rating 6.5+)
+        - "Best Location"  → Located closest to the main area / most central
+        - "Highest Rated"  → Highest review score regardless of price
+        - "Best Value"     → Great rating relative to its price (value for money)
+
+        Budget rules:
+        - "Luxury"/"Premium": favor higher-priced, top-rated hotels (4-5 star quality)
+        - "Mid-range": good value, solid quality — neither cheapest nor most expensive
+        - "Budget"/"Economy": affordable options, rating 6.5+
+        - If "{budget}" is a number (e.g. "5000"), treat it as max TOTAL price (price_per_night × nights)
+
+        Each of the 5 categories must appear exactly once. Names must exactly match the JSON above.
+
+        Return ONLY a raw JSON array of 5 objects, no markdown:
+        [{{"name": "Hotel A", "category": "Best Overall"}}, ...]
         """
 
         if settings.OPENROUTER_API_KEY:
@@ -198,31 +205,20 @@ Structure:
 
             if response_text:
                 try:
-                    selected_names = json.loads(response_text)
-                    if not isinstance(selected_names, list):
+                    selected = json.loads(response_text)
+                    if not isinstance(selected, list):
                         raise ValueError("Response was not a JSON array")
 
-                    logger.info(f"AI selected hotel names: {selected_names}")
-                    curated_hotels = []
-                    for name in selected_names:
-                        for h in unique_hotels:
-                            if h["name"] == name:
-                                curated_hotels.append(h)
-                                break
-
-                    if len(curated_hotels) < max_results:
-                        for h in unique_hotels:
-                            if h not in curated_hotels and len(curated_hotels) < max_results:
-                                curated_hotels.append(h)
-
+                    logger.info(f"AI selected hotels: {selected}")
+                    curated_hotels = self._build_curated(selected, unique_hotels, max_results)
                     logger.info(f"Returning {len(curated_hotels)} curated hotels")
                     return curated_hotels
                 except Exception as e:
                     logger.error(f"Failed to parse OpenRouter response: {e} | text: {repr(response_text[:200])}")
 
         if not self.gemini_client or not settings.GEMINI_API_KEY:
-            logger.warning("No AI API (OpenRouter/Gemini) configured. Returning top 5 hotels by default.")
-            return unique_hotels[:max_results]
+            logger.warning("No AI API configured. Returning top 5 hotels with default categories.")
+            return self._assign_default_categories(unique_hotels[:max_results])
             
         logger.info(f"Using Gemini to curate best {max_results} hotels out of {len(unique_hotels)} for budget: {budget}")
         
@@ -241,27 +237,65 @@ Structure:
                 response_text = response_text[:-3]
             response_text = response_text.strip()
             
-            selected_names = json.loads(response_text)
-            
-            if not isinstance(selected_names, list):
+            selected = json.loads(response_text)
+            if not isinstance(selected, list):
                 raise ValueError("Response was not a JSON array")
-                
-            curated_hotels = []
-            for name in selected_names:
-                for h in unique_hotels:
-                    if h["name"] == name:
-                        curated_hotels.append(h)
-                        break
-                        
-            if len(curated_hotels) < max_results:
-                for h in unique_hotels:
-                    if h not in curated_hotels and len(curated_hotels) < max_results:
-                        curated_hotels.append(h)
-                        
-            return curated_hotels
+
+            return self._build_curated(selected, unique_hotels, max_results)
             
         except Exception as e:
             logger.error(f"Gemini curation failed: {e}. Falling back to default selection.")
-            return unique_hotels[:max_results]
+            return self._assign_default_categories(unique_hotels[:max_results])
+
+    # ── Curation helpers ─────────────────────────────────────────────────────
+
+    _DEFAULT_CATEGORIES = [
+        "Best Overall", "Budget Pick", "Best Location", "Highest Rated", "Best Value"
+    ]
+
+    def _build_curated(self, selected: list, unique_hotels: list, max_results: int) -> list:
+        """
+        Map AI response (list of {name, category} dicts OR plain name strings)
+        back to full hotel dicts, injecting the category field.
+        """
+        hotel_by_name = {h["name"]: h for h in unique_hotels}
+        curated: list = []
+        used_names: set = set()
+
+        for item in selected:
+            if isinstance(item, dict):
+                name = item.get("name", "")
+                category = item.get("category", "")
+            else:
+                # Fallback: plain string (old format)
+                name = str(item)
+                category = self._DEFAULT_CATEGORIES[len(curated)] if len(curated) < len(self._DEFAULT_CATEGORIES) else ""
+
+            hotel = hotel_by_name.get(name)
+            if hotel and name not in used_names:
+                h = dict(hotel)  # copy so we don't mutate cache
+                h["category"] = category
+                curated.append(h)
+                used_names.add(name)
+
+        # Pad with remaining hotels if AI returned fewer than max_results
+        if len(curated) < max_results:
+            for h in unique_hotels:
+                if h["name"] not in used_names and len(curated) < max_results:
+                    hc = dict(h)
+                    idx = len(curated)
+                    hc["category"] = self._DEFAULT_CATEGORIES[idx] if idx < len(self._DEFAULT_CATEGORIES) else ""
+                    curated.append(hc)
+                    used_names.add(h["name"])
+        return curated
+
+    def _assign_default_categories(self, hotels: list) -> list:
+        """Assign default category labels positionally when no AI is available."""
+        result = []
+        for i, h in enumerate(hotels):
+            hc = dict(h)
+            hc["category"] = self._DEFAULT_CATEGORIES[i] if i < len(self._DEFAULT_CATEGORIES) else ""
+            result.append(hc)
+        return result
 
 ai_service = AIService()

@@ -245,7 +245,7 @@ class HotelScraper:
                 self._run_scrape_booking_sync,
                 city_slug.replace('_', ' ').title(),  # human-readable for Booking.com
                 checkin_dt, checkout_dt, budget,
-                max_pages=5  # always wide for city-level
+                max_pages=4  # wide city-level scrape
             )
             if city_hotels:
                 self._save_to_cache(city_slug, city_hotels)
@@ -257,17 +257,19 @@ class HotelScraper:
             return city_hotels or []
 
         # ── Step 4: Filter city hotels by neighborhood ────────────────────────
+        # Check both the short location label AND the full scraped address string.
         city_list: List[Dict] = city_hotels or []
         filtered = [
             h for h in city_list
             if neighborhood_slug in h.get("location", "").lower()
+            or neighborhood_slug in h.get("address", "").lower()
         ]
         self._add_log(
             f"Neighborhood filter '{neighborhood_slug}': {len(filtered)} hotels from city cache."
         )
 
         # ── Step 5: Not enough? Focused neighborhood scrape + merge ──────────
-        THRESHOLD = 30
+        THRESHOLD = 15
         if len(filtered) < THRESHOLD:
             self._add_log(
                 f"Only {len(filtered)} results (< {THRESHOLD}) — running focused scrape for '{destination}'..."
@@ -460,9 +462,23 @@ class HotelScraper:
                 except ValueError:
                     rating = None
             
+            # Distance-based short label (e.g. "1.2 km from centre")
             location_elem = await card.query_selector('[data-testid="distance"]')
             location = await location_elem.inner_text() if location_elem else f"Near {name.split()[0]}"
             location = location.strip()
+
+            # Neighbourhood/area name from the stable address-link element.
+            # e.g. <span data-testid="address-link">Calangute</span>
+            # Used for neighbourhood subset filtering in tiered cache.
+            address: Optional[str] = None
+            try:
+                addr_elem = await card.query_selector('[data-testid="address-link"]')
+                if addr_elem:
+                    raw_addr = await addr_elem.inner_text()
+                    if raw_addr:
+                        address = raw_addr.strip()
+            except Exception:
+                pass
             
             img_elem = await card.query_selector('[data-testid="image"]')
             img_url = None
@@ -480,6 +496,7 @@ class HotelScraper:
             return {
                 "name": name,
                 "location": location,
+                "address": address,
                 "price_per_night": price,
                 "currency": "INR",
                 "rating": rating,
