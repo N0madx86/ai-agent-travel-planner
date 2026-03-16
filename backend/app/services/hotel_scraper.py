@@ -269,10 +269,10 @@ class HotelScraper:
         )
 
         # ── Step 5: Not enough? Focused neighborhood scrape + merge ──────────
-        THRESHOLD = 15
-        if len(filtered) < THRESHOLD:
+        THRESHOLD = 5
+        if len(filtered) <= THRESHOLD:
             self._add_log(
-                f"Only {len(filtered)} results (< {THRESHOLD}) — running focused scrape for '{destination}'..."
+                f"Only {len(filtered)} results (≤ {THRESHOLD}) — running focused scrape for '{destination}'..."
             )
             specific: List[Dict] = await asyncio.to_thread(
                 self._run_scrape_booking_sync,
@@ -283,7 +283,13 @@ class HotelScraper:
             if merged:
                 nbhd_key = f"{city_slug}__{neighborhood_slug}"
                 self._save_to_cache(nbhd_key, merged)
-            filtered = merged
+                filtered = merged
+            else:
+                # Specific scrape also found nothing new — pass what we have through
+                self._add_log(
+                    f"Specific scrape returned no new results. Passing {len(filtered)} available hotels to AI."
+                )
+                # filtered stays as-is (could be 0-5 hotels)
 
         if filtered:
             self._save_current_search(filtered)
