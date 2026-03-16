@@ -268,7 +268,7 @@ class HotelScraper:
             f"Neighborhood filter '{neighborhood_slug}': {len(filtered)} hotels from city cache."
         )
 
-        # ── Step 5: Not enough? Focused neighborhood scrape + merge ──────────
+        # ── Step 5: Not enough? Focused neighborhood scrape + merge (runs ONCE) ─
         THRESHOLD = 5
         if len(filtered) <= THRESHOLD:
             self._add_log(
@@ -280,16 +280,19 @@ class HotelScraper:
                 max_pages=3  # targeted, fewer pages
             ) or []
             merged = self._merge_unique(filtered, specific)
-            if merged:
-                nbhd_key = f"{city_slug}__{neighborhood_slug}"
-                self._save_to_cache(nbhd_key, merged)
-                filtered = merged
-            else:
-                # Specific scrape also found nothing new — pass what we have through
+
+            # Always cache after the specific scrape — even if results are still sparse.
+            # This ensures the specific scraper fires exactly ONCE per neighborhood.
+            # On the next search, Step 1 hits this cache and returns immediately.
+            final = merged if merged else filtered
+            nbhd_key = f"{city_slug}__{neighborhood_slug}"
+            self._save_to_cache(nbhd_key, final)
+            filtered = final
+
+            if not merged:
                 self._add_log(
-                    f"Specific scrape returned no new results. Passing {len(filtered)} available hotels to AI."
+                    f"Specific scrape added no new hotels. Passing {len(filtered)} result(s) to AI."
                 )
-                # filtered stays as-is (could be 0-5 hotels)
 
         if filtered:
             self._save_current_search(filtered)
