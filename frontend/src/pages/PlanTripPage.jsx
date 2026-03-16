@@ -1,9 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Calendar, Users, IndianRupee, Heart, Loader2, Sparkles } from 'lucide-react';
 import { tripsAPI } from '../services/api';
 import { format, addDays } from 'date-fns';
 import { useRipple } from '../hooks/useAnimations';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://tabi-uul5.onrender.com';
+
+// Simple user-facing status messages (cycle while searching)
+const SEARCH_PHRASES = [
+  'Searching best hotels for you…',
+  'Curating top picks with AI…',
+  'Almost there…',
+];
 
 const interestSuggestions = [
   'Beach 🏖️', 'Mountains 🏔️', 'Culture 🎭', 'Adventure 🧗',
@@ -24,6 +33,9 @@ function FieldLabel({ icon: Icon, label }) {
 export default function PlanTripPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [phraseIdx, setPhraseIdx] = useState(0);
+  const phraseTimer = useRef(null);
+  const eventSourceRef = useRef(null);
   const [formData, setFormData] = useState({
     destination: '',
     start_date: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
@@ -56,14 +68,66 @@ export default function PlanTripPage() {
     setFormData({ ...formData, interests: updated.join(', ') });
   };
 
+  // Cycle through friendly loading phrases
+  const startPhraseRotation = () => {
+    setPhraseIdx(0);
+    let idx = 0;
+    phraseTimer.current = setInterval(() => {
+      idx = (idx + 1) % SEARCH_PHRASES.length;
+      setPhraseIdx(idx);
+    }, 3000);
+  };
+
+  const stopPhraseRotation = () => {
+    if (phraseTimer.current) {
+      clearInterval(phraseTimer.current);
+      phraseTimer.current = null;
+    }
+  };
+
+  // Open SSE stream to track search progress
+  const openSearchStream = (onDone) => {
+    if (eventSourceRef.current) eventSourceRef.current.close();
+    const es = new EventSource(`${API_BASE_URL}/api/hotels/search/stream`);
+    eventSourceRef.current = es;
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.done) {
+          es.close();
+          eventSourceRef.current = null;
+          onDone();
+        }
+      } catch {}
+    };
+    es.onerror = () => {
+      es.close();
+      eventSourceRef.current = null;
+    };
+  };
+
+  // Cleanup on unmount
+  useEffect(() => () => {
+    stopPhraseRotation();
+    if (eventSourceRef.current) eventSourceRef.current.close();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    startPhraseRotation();
+    // Open SSE stream so backend can push progress (optional UX enhancement)
+    openSearchStream(() => {});
     try {
       const response = await tripsAPI.create(formData);
+      stopPhraseRotation();
       navigate(`/trips/${response.data.id}`);
-    } catch { alert('Failed to create trip. Please try again.'); }
-    finally { setLoading(false); }
+    } catch {
+      alert('Failed to create trip. Please try again.');
+      stopPhraseRotation();
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -168,9 +232,15 @@ export default function PlanTripPage() {
 
           <button type="submit" ref={rippleRef} onClick={createRipple}
             disabled={loading} className="btn-primary w-full py-4 text-base">
-            {loading
-              ? <><Loader2 className="animate-spin w-5 h-5 mr-2 inline" />Creating your trip…</>
-              : 'Create My Trip Plan →'}
+            {loading ? (
+              <span className="flex flex-col items-center gap-1">
+                <span className="flex items-center gap-2">
+                  <Loader2 className="animate-spin w-5 h-5" />
+                  <span className="font-semibold">{SEARCH_PHRASES[phraseIdx]}</span>
+                </span>
+                <span className="text-xs opacity-60 font-normal tracking-wide">This may take a moment on first search</span>
+              </span>
+            ) : 'Create My Trip Plan →'}
           </button>
         </form>
       </div>

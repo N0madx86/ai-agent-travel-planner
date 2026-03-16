@@ -5,8 +5,10 @@ Fully integrated with the travel planner app
 
 import asyncio
 import json
+import random
+import re
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Dict, Union
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
@@ -20,17 +22,78 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# ── Rotation pools ────────────────────────────────────────────────────────────
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
+]
+
+LOCALES = ['en-IN', 'en-US', 'en-GB', 'en-AU']
+
+TIMEZONES = ['Asia/Kolkata', 'America/New_York', 'Europe/London', 'Asia/Singapore']
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 class HotelScraper:
-    """Asynchronous Booking.com scraper for Deep Search workflow"""
+    """Asynchronous Booking.com scraper with caching and stealth rotation"""
     
     def __init__(self):
         self.search_dir = Path(settings.CACHE_DIR) / "search"
+        self.hotel_cache_dir = Path(settings.CACHE_DIR) / "hotels"
         self.search_dir.mkdir(parents=True, exist_ok=True)
+        self.hotel_cache_dir.mkdir(parents=True, exist_ok=True)
         self.current_search_file = self.search_dir / "current_search.json"
         self.search_logs_file = self.search_dir / "search_logs.json"
         logger.info(f"HotelScraper initialized with search dir: {self.search_dir}")
+
+    # ── Cache helpers ─────────────────────────────────────────────────────────
+
+    def _get_cache_key(self, destination: str) -> str:
+        """Normalise a destination string into a safe filename key (Option A)."""
+        return re.sub(r'[^a-z0-9_]', '_', destination.lower().strip())
+
+    def _load_from_cache(self, key: str) -> Optional[List[Dict]]:
+        """Return cached hotels if fresh (< CACHE_TTL_HOURS old), else None."""
+        cache_file = self.hotel_cache_dir / f"{key}.json"
+        if not cache_file.exists():
+            return None
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            cached_at = datetime.fromisoformat(data["timestamp"])
+            age_hours = (datetime.now() - cached_at).total_seconds() / 3600
+            if age_hours < settings.CACHE_TTL_HOURS:
+                hotels = data.get("hotels", [])
+                logger.info(f"Cache hit for '{key}' — returning {len(hotels)} hotels (age {age_hours:.1f}h)")
+                self._add_log(f"Cache hit — returning {len(hotels)} pre-cached hotels instantly.")
+                return hotels
+            else:
+                logger.info(f"Cache expired for '{key}' (age {age_hours:.1f}h) — will re-scrape")
+                return None
+        except Exception as e:
+            logger.warning(f"Cache read error for '{key}': {e}")
+            return None
+
+    def _save_to_cache(self, key: str, hotels: List[Dict]):
+        """Persist raw scraped hotels to destination cache file."""
+        cache_file = self.hotel_cache_dir / f"{key}.json"
+        try:
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump({
+                    "timestamp": datetime.now().isoformat(),
+                    "destination_key": key,
+                    "total_hotels": len(hotels),
+                    "hotels": hotels,
+                }, f, ensure_ascii=False, indent=2)
+            logger.info(f"Saved {len(hotels)} hotels to cache for '{key}'")
+        except Exception as e:
+            logger.warning(f"Cache write error for '{key}': {e}")
+
+    # ── Log helpers ───────────────────────────────────────────────────────────
         
     def _init_logs(self):
         """Initialize empty search logs"""
@@ -86,6 +149,8 @@ class HotelScraper:
         except Exception as e:
             logger.error(f"Error cleaning up current search: {e}")
 
+    # ── Public search entry point ─────────────────────────────────────────────
+
     async def search_hotels(
         self, 
         destination: str, 
@@ -95,12 +160,21 @@ class HotelScraper:
         max_pages: int = 5
     ) -> List[Dict]:
         """
-        Deep Search for hotels scraping multiple pages
+        Deep Search for hotels. Returns cached results if fresh,
+        otherwise scrapes Booking.com and caches the output.
         """
         self._init_logs()
-        self._add_log(f"Starting Deep Search for {destination} (budget: {budget})...")
+        self._add_log(f"Starting search for {destination} (budget: {budget})...")
 
-        # Convert strings to datetime if necessary
+        # ── Step 1: Check destination cache ──────────────────────────────────
+        cache_key = self._get_cache_key(destination)
+        cached = self._load_from_cache(cache_key)
+        if cached is not None:
+            # Serve from cache — still save to current_search.json for AI
+            self._save_current_search(cached)
+            return cached
+
+        # ── Step 2: Cache miss — scrape live ─────────────────────────────────
         if isinstance(checkin, str):
             try:
                 checkin_dt = datetime.fromisoformat(checkin.replace('Z', '+00:00'))
@@ -117,14 +191,13 @@ class HotelScraper:
         else:
             checkout_dt = checkout
         
-        # Offload scraping to a separate thread with its own ProactorEventLoop
         hotels = await asyncio.to_thread(
             self._run_scrape_booking_sync,
             destination, checkin_dt, checkout_dt, budget, max_pages
         )
         
-        # Save to container for AI to read
         if hotels:
+            self._save_to_cache(cache_key, hotels)
             self._save_current_search(hotels)
         
         return hotels
@@ -152,7 +225,7 @@ class HotelScraper:
         budget: str = "Mid-range",
         max_pages: int = 2
     ) -> List[Dict]:
-        """Scrape Booking.com sequentially with stealth and Xvfb"""
+        """Scrape Booking.com sequentially with stealth and context rotation"""
         
         checkin_str = checkin.strftime('%Y-%m-%d')
         checkout_str = checkout.strftime('%Y-%m-%d')
@@ -162,11 +235,17 @@ class HotelScraper:
         if nights < 1:
             nights = 1
 
-        self._add_log(f"Launching sequential scrape for {destination} ({max_pages} pages)...")
+        # ── Pick rotated identity for this session ────────────────────────────
+        ua = random.choice(USER_AGENTS)
+        locale = random.choice(LOCALES)
+        timezone = random.choice(TIMEZONES)
+        logger.info(f"Scrape identity — UA: {ua[:40]}…  locale: {locale}  tz: {timezone}")
+
+        self._add_log(f"Launching scrape for {destination} ({max_pages} pages)...")
         
         all_hotels = []
 
-        # ── Start Xvfb virtual display for headful mode on Linux ──
+        # ── Start Xvfb virtual display for headful mode on Linux ──────────────
         display_proc = None
         import sys
         if sys.platform != 'win32':
@@ -176,7 +255,7 @@ class HotelScraper:
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                 )
                 os.environ['DISPLAY'] = ':99'
-                await asyncio.sleep(1)  # Give Xvfb time to start
+                await asyncio.sleep(1)
                 logger.info("Xvfb virtual display started for headful mode")
             except Exception as e:
                 logger.warning(f"Could not start Xvfb, falling back to headless: {e}")
@@ -199,10 +278,12 @@ class HotelScraper:
                     ]
                 )
 
+                # ── Rotated context ───────────────────────────────────────────
                 context = await browser.new_context(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    user_agent=ua,
                     viewport={'width': 1920, 'height': 1080},
-                    locale='en-IN',
+                    locale=locale,
+                    timezone_id=timezone,
                     extra_http_headers={
                         'Accept-Language': 'en-US,en;q=0.9',
                     }
@@ -211,7 +292,6 @@ class HotelScraper:
                 page = await context.new_page()
                 await stealth_async(page)
 
-                # Scrape pages sequentially
                 for page_num in range(1, max_pages + 1):
                     if page_num > 1:
                         await asyncio.sleep(3)
@@ -222,7 +302,7 @@ class HotelScraper:
 
                     try:
                         await page.goto(url, wait_until='domcontentloaded', timeout=30000)
-                        await asyncio.sleep(2)  # Brief wait for content
+                        await asyncio.sleep(2)
 
                         try:
                             await page.wait_for_selector('[data-testid="property-card"]', timeout=15000)
@@ -248,7 +328,7 @@ class HotelScraper:
             if display_proc:
                 display_proc.terminate()
 
-        # De-duplicate results by name
+        # De-duplicate by name
         unique_hotels = []
         seen_names = set()
         for h in all_hotels:
@@ -256,7 +336,7 @@ class HotelScraper:
                 unique_hotels.append(h)
                 seen_names.add(h["name"])
 
-        self._add_log(f"Sequential scrape complete. Found {len(unique_hotels)} unique hotels.", len(unique_hotels))
+        self._add_log(f"Scrape complete. Found {len(unique_hotels)} unique hotels.", len(unique_hotels))
         return unique_hotels
     
     async def _extract_hotel_data(self, card, nights: int = 1) -> Optional[Dict]:
@@ -331,12 +411,10 @@ class HotelScraper:
             "lang=en-us",
         ]
         
-        # Sort only for extreme budgets; mid-range uses default relevance sort
         if any(kw in budget_lower for kw in ['luxur', 'premium', 'high']):
-            params.append("order=price_desc")  # Most expensive first
+            params.append("order=price_desc")
         elif any(kw in budget_lower for kw in ['budget', 'cheap', 'economy', 'low']):
-            params.append("order=price")  # Cheapest first
-        # Mid-range: no sort param → Booking.com defaults to popularity/relevance
+            params.append("order=price")
         
         return f"{base}?{'&'.join(params)}"
 
