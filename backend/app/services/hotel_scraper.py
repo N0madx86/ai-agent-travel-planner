@@ -261,8 +261,8 @@ class HotelScraper:
         city_list: List[Dict] = city_hotels or []
         filtered = [
             h for h in city_list
-            if neighborhood_slug in h.get("location", "").lower()
-            or neighborhood_slug in h.get("address", "").lower()
+            if neighborhood_slug in (h.get("location") or "").lower()
+            or neighborhood_slug in (h.get("address") or "").lower()
         ]
         self._add_log(
             f"Neighborhood filter '{neighborhood_slug}': {len(filtered)} hotels from city cache."
@@ -397,7 +397,7 @@ class HotelScraper:
                     self._add_log(f"Scraping page {page_num} (offset {offset})...")
 
                     try:
-                        await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+                        await page.goto(url, wait_until='domcontentloaded', timeout=60000)
                         await asyncio.sleep(2)
 
                         try:
