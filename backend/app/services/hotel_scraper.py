@@ -52,9 +52,28 @@ class HotelScraper:
 
     # ── Cache helpers ─────────────────────────────────────────────────────────
 
+    # ── Destination parsing ───────────────────────────────────────────────────
+
+    def _slugify(self, text: str) -> str:
+        """Lowercase, strip, replace non-alphanumeric chars with underscores."""
+        return re.sub(r'[^a-z0-9]+', '_', text.lower().strip()).strip('_')
+
+    def _parse_destination(self, destination: str):
+        """
+        Split 'City, Neighborhood' into (city_slug, neighborhood_slug or None).
+        Examples:
+          'Goa'              → ('goa', None)
+          'Goa, Calangute'   → ('goa', 'calangute')
+          'Paris, Montmartre' → ('paris', 'montmartre')
+        """
+        parts = [p.strip() for p in destination.split(',', 1)]
+        city_slug = self._slugify(parts[0])
+        neighborhood_slug = self._slugify(parts[1]) if len(parts) > 1 and parts[1] else None
+        return city_slug, neighborhood_slug
+
     def _get_cache_key(self, destination: str) -> str:
-        """Normalise a destination string into a safe filename key (Option A)."""
-        return re.sub(r'[^a-z0-9_]', '_', destination.lower().strip())
+        """Backwards-compat: return slugified destination as cache key."""
+        return self._slugify(destination)
 
     def _load_from_cache(self, key: str) -> Optional[List[Dict]]:
         """Return cached hotels if fresh (< CACHE_TTL_HOURS old), else None."""
@@ -151,56 +170,122 @@ class HotelScraper:
 
     # ── Public search entry point ─────────────────────────────────────────────
 
+    # ── Merge helpers ─────────────────────────────────────────────────────────
+
+    def _merge_unique(self, base: List[Dict], extra: List[Dict]) -> List[Dict]:
+        """
+        Merge two hotel lists, de-duplicating by URL path (fallback: name).
+        Hotels in `base` take priority; `extra` only contributes new entries.
+        """
+        from urllib.parse import urlparse
+        seen: set = set()
+        result = []
+        for h in base + extra:
+            url = h.get("booking_url", "")
+            key = urlparse(url).path if url else h["name"]
+            if key not in seen:
+                result.append(h)
+                seen.add(key)
+        return result
+
+    # ── Date parsing helper ───────────────────────────────────────────────────
+
+    def _parse_dates(self, checkin: Union[datetime, str], checkout: Union[datetime, str]):
+        """Coerce checkin/checkout strings to datetime objects."""
+        def _coerce(v):
+            if isinstance(v, datetime):
+                return v
+            try:
+                return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            except Exception:
+                return datetime.strptime(v, '%Y-%m-%d')
+        return _coerce(checkin), _coerce(checkout)
+
+    # ── Public search entry point ─────────────────────────────────────────────
+
     async def search_hotels(
-        self, 
-        destination: str, 
-        checkin: Union[datetime, str], 
-        checkout: Union[datetime, str], 
+        self,
+        destination: str,
+        checkin: Union[datetime, str],
+        checkout: Union[datetime, str],
         budget: str = "Mid-range",
         max_pages: int = 5
     ) -> List[Dict]:
         """
-        Deep Search for hotels. Returns cached results if fresh,
-        otherwise scrapes Booking.com and caches the output.
+        Tiered hotel search:
+
+        1. Parse destination into city + optional neighborhood.
+        2. Try wide CITY cache (covers all neighborhoods for free).
+           - Cache miss → wide scrape (5 pages), save to city cache.
+        3. If neighborhood given, filter city hotels by location string.
+           - ≥ 30 matching results → done, return filtered set.
+           - < 30 → run a focused neighborhood scrape (3 pages) and merge.
+             Save merged set to neighborhood-level cache.
+        4. No neighborhood → return full city results.
         """
         self._init_logs()
         self._add_log(f"Starting search for {destination} (budget: {budget})...")
 
-        # ── Step 1: Check destination cache ──────────────────────────────────
-        cache_key = self._get_cache_key(destination)
-        cached = self._load_from_cache(cache_key)
-        if cached is not None:
-            # Serve from cache — still save to current_search.json for AI
-            self._save_current_search(cached)
-            return cached
+        city_slug, neighborhood_slug = self._parse_destination(destination)
+        checkin_dt, checkout_dt = self._parse_dates(checkin, checkout)
 
-        # ── Step 2: Cache miss — scrape live ─────────────────────────────────
-        if isinstance(checkin, str):
-            try:
-                checkin_dt = datetime.fromisoformat(checkin.replace('Z', '+00:00'))
-            except:
-                checkin_dt = datetime.strptime(checkin, '%Y-%m-%d')
-        else:
-            checkin_dt = checkin
-            
-        if isinstance(checkout, str):
-            try:
-                checkout_dt = datetime.fromisoformat(checkout.replace('Z', '+00:00'))
-            except:
-                checkout_dt = datetime.strptime(checkout, '%Y-%m-%d')
-        else:
-            checkout_dt = checkout
-        
-        hotels = await asyncio.to_thread(
-            self._run_scrape_booking_sync,
-            destination, checkin_dt, checkout_dt, budget, max_pages
+        # ── Step 1: Check neighborhood-level cache (most specific, fastest) ──
+        if neighborhood_slug:
+            nbhd_key = f"{city_slug}__{neighborhood_slug}"
+            nbhd_cached = self._load_from_cache(nbhd_key)
+            if nbhd_cached is not None:
+                self._save_current_search(nbhd_cached)
+                return nbhd_cached
+
+        # ── Step 2: Check / fill wide city cache ─────────────────────────────
+        city_hotels = self._load_from_cache(city_slug)
+        if city_hotels is None:
+            self._add_log(f"No city cache for '{city_slug}' — running wide scrape...")
+            city_hotels = await asyncio.to_thread(
+                self._run_scrape_booking_sync,
+                city_slug.replace('_', ' ').title(),  # human-readable for Booking.com
+                checkin_dt, checkout_dt, budget,
+                max_pages=5  # always wide for city-level
+            )
+            if city_hotels:
+                self._save_to_cache(city_slug, city_hotels)
+
+        # ── Step 3: No neighborhood → return city hotels ──────────────────────
+        if not neighborhood_slug:
+            if city_hotels:
+                self._save_current_search(city_hotels)
+            return city_hotels or []
+
+        # ── Step 4: Filter city hotels by neighborhood ────────────────────────
+        city_list: List[Dict] = city_hotels or []
+        filtered = [
+            h for h in city_list
+            if neighborhood_slug in h.get("location", "").lower()
+        ]
+        self._add_log(
+            f"Neighborhood filter '{neighborhood_slug}': {len(filtered)} hotels from city cache."
         )
-        
-        if hotels:
-            self._save_to_cache(cache_key, hotels)
-            self._save_current_search(hotels)
-        
-        return hotels
+
+        # ── Step 5: Not enough? Focused neighborhood scrape + merge ──────────
+        THRESHOLD = 30
+        if len(filtered) < THRESHOLD:
+            self._add_log(
+                f"Only {len(filtered)} results (< {THRESHOLD}) — running focused scrape for '{destination}'..."
+            )
+            specific: List[Dict] = await asyncio.to_thread(
+                self._run_scrape_booking_sync,
+                destination, checkin_dt, checkout_dt, budget,
+                max_pages=3  # targeted, fewer pages
+            ) or []
+            merged = self._merge_unique(filtered, specific)
+            if merged:
+                nbhd_key = f"{city_slug}__{neighborhood_slug}"
+                self._save_to_cache(nbhd_key, merged)
+            filtered = merged
+
+        if filtered:
+            self._save_current_search(filtered)
+        return filtered
     
     def _run_scrape_booking_sync(self, destination, checkin, checkout, budget, max_pages):
         """Run the async scraper in a dedicated event loop"""
