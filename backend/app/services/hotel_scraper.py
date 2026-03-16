@@ -71,46 +71,66 @@ class HotelScraper:
         neighborhood_slug = self._slugify(parts[1]) if len(parts) > 1 and parts[1] else None
         return city_slug, neighborhood_slug
 
-    def _get_cache_key(self, destination: str) -> str:
-        """Backwards-compat: return slugified destination as cache key."""
-        return self._slugify(destination)
-
-    def _load_from_cache(self, key: str) -> Optional[List[Dict]]:
-        """Return cached hotels if fresh (< CACHE_TTL_HOURS old), else None."""
-        cache_file = self.hotel_cache_dir / f"{key}.json"
+    def _load_from_cache(self, city_slug: str, search_key: str) -> Optional[List[Dict]]:
+        """
+        Load search results from a city-specific cache file.
+        Returns hotels list if the key exists and is within TTL, else None.
+        """
+        cache_file = self.hotel_cache_dir / f"{city_slug}.json"
         if not cache_file.exists():
             return None
+            
         try:
             with open(cache_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            cached_at = datetime.fromisoformat(data["timestamp"])
+                city_data = json.load(f)
+                
+            entry = city_data.get(search_key)
+            if not entry:
+                return None
+                
+            cached_at = datetime.fromisoformat(entry["timestamp"])
             age_hours = (datetime.now() - cached_at).total_seconds() / 3600
+            
             if age_hours < settings.CACHE_TTL_HOURS:
-                hotels = data.get("hotels", [])
-                logger.info(f"Cache hit for '{key}' — returning {len(hotels)} hotels (age {age_hours:.1f}h)")
-                self._add_log(f"Cache hit — returning {len(hotels)} pre-cached hotels instantly.")
+                hotels = entry.get("hotels", [])
+                logger.info(f"Cache hit for key '{search_key}' in '{city_slug}.json' (age {age_hours:.1f}h)")
+                self._add_log(f"Cache hit for {search_key} — returning {len(hotels)} hotels.")
                 return hotels
             else:
-                logger.info(f"Cache expired for '{key}' (age {age_hours:.1f}h) — will re-scrape")
+                logger.info(f"Cache expired for '{search_key}' in '{city_slug}.json' (age {age_hours:.1f}h)")
                 return None
         except Exception as e:
-            logger.warning(f"Cache read error for '{key}': {e}")
+            logger.warning(f"Error reading cache for '{city_slug}' / '{search_key}': {e}")
             return None
 
-    def _save_to_cache(self, key: str, hotels: List[Dict]):
-        """Persist raw scraped hotels to destination cache file."""
-        cache_file = self.hotel_cache_dir / f"{key}.json"
+    def _save_to_cache(self, city_slug: str, search_key: str, hotels: List[Dict]):
+        """
+        Save search results to a city-specific cache file.
+        Updates the existing file if it exists, or creates a new one.
+        """
+        cache_file = self.hotel_cache_dir / f"{city_slug}.json"
+        city_data = {}
+        
+        # Load existing data first
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    city_data = json.load(f)
+            except Exception as e:
+                logger.warning(f"Existing cache for {city_slug} is corrupt, starting fresh: {e}")
+                
+        # Update/Add the specific search key
+        city_data[search_key] = {
+            "timestamp": datetime.now().isoformat(),
+            "hotels": hotels
+        }
+        
         try:
             with open(cache_file, 'w', encoding='utf-8') as f:
-                json.dump({
-                    "timestamp": datetime.now().isoformat(),
-                    "destination_key": key,
-                    "total_hotels": len(hotels),
-                    "hotels": hotels,
-                }, f, ensure_ascii=False, indent=2)
-            logger.info(f"Saved {len(hotels)} hotels to cache for '{key}'")
+                json.dump(city_data, f, ensure_ascii=False, indent=2)
+            logger.info(f"Updated cache for '{search_key}' in '{city_slug}.json' ({len(hotels)} hotels)")
         except Exception as e:
-            logger.warning(f"Cache write error for '{key}': {e}")
+            logger.warning(f"Error saving cache for '{city_slug}' / '{search_key}': {e}")
 
     # ── Log helpers ───────────────────────────────────────────────────────────
         
@@ -226,77 +246,77 @@ class HotelScraper:
         self._init_logs()
         self._add_log(f"Starting search for {destination} (budget: {budget})...")
 
+        # ── Step 1: Normalize keys ───────────────────────────────────────────
         city_slug, neighborhood_slug = self._parse_destination(destination)
         checkin_dt, checkout_dt = self._parse_dates(checkin, checkout)
+        
+        # Search key is "city:neighborhood" or "city"
+        search_key = f"{city_slug}:{neighborhood_slug}" if neighborhood_slug else city_slug
+        
+        # ── Step 2: Direct Hit? ──────────────────────────────────────────────
+        results = self._load_from_cache(city_slug, search_key)
+        if results is not None:
+            if results:
+                self._save_current_search(results)
+            return results
 
-        # ── Step 1: Check neighborhood-level cache (most specific, fastest) ──
-        if neighborhood_slug:
-            nbhd_key = f"{city_slug}__{neighborhood_slug}"
-            nbhd_cached = self._load_from_cache(nbhd_key)
-            if nbhd_cached is not None:
-                self._save_current_search(nbhd_cached)
-                return nbhd_cached
-
-        # ── Step 2: Check / fill wide city cache ─────────────────────────────
-        city_hotels = self._load_from_cache(city_slug)
+        # ── Step 3: Wide City Cache? ─────────────────────────────────────────
+        city_hotels = self._load_from_cache(city_slug, city_slug)
+        
         if city_hotels is None:
             self._add_log(f"No city cache for '{city_slug}' — running wide scrape...")
             city_hotels = await asyncio.to_thread(
                 self._run_scrape_booking_sync,
-                city_slug.replace('_', ' ').title(),  # human-readable for Booking.com
+                city_slug.replace('_', ' ').title(),
                 checkin_dt, checkout_dt, budget,
-                max_pages=4  # wide city-level scrape
+                max_pages=4
             )
             if city_hotels:
-                self._save_to_cache(city_slug, city_hotels)
+                self._save_to_cache(city_slug, city_slug, city_hotels)
+            else:
+                city_hotels = [] # Ensure we have a list to filter
 
-        # ── Step 3: No neighborhood → return city hotels ──────────────────────
-        if not neighborhood_slug:
-            if city_hotels:
-                self._save_current_search(city_hotels)
-            return city_hotels or []
-
-        # ── Step 4: Filter city hotels by neighborhood ────────────────────────
-        # Check both the short location label AND the full scraped address string.
-        city_list: List[Dict] = city_hotels or []
-        filtered = [
-            h for h in city_list
-            if neighborhood_slug in (h.get("location") or "").lower()
-            or neighborhood_slug in (h.get("address") or "").lower()
-        ]
-        self._add_log(
-            f"Neighborhood filter '{neighborhood_slug}': {len(filtered)} hotels from city cache."
-        )
-
-        # ── Step 5: Not enough? Focused neighborhood scrape + merge (runs ONCE) ─
-        THRESHOLD = 5
-        if len(filtered) <= THRESHOLD:
-            self._add_log(
-                f"Only {len(filtered)} results (≤ {THRESHOLD}) — running focused scrape for '{destination}'..."
-            )
-            specific: List[Dict] = await asyncio.to_thread(
+        # ── Step 4: Neighborhood Filtering ────────────────────────────────────
+        if neighborhood_slug:
+            filtered = [
+                h for h in city_hotels
+                if neighborhood_slug in (h.get("location") or "").lower()
+                or neighborhood_slug in (h.get("address") or "").lower()
+            ]
+            self._add_log(f"Filtered neighborhood '{neighborhood_slug}': found {len(filtered)} matches in city cache.")
+            
+            # If we found > 5 results, save it as a direct hit for next time
+            if len(filtered) > 5:
+                self._save_to_cache(city_slug, search_key, filtered)
+                self._save_current_search(filtered)
+                return filtered
+            
+            # ≤ 5 results → Specified scrape to be thorough
+            self._add_log(f"Sparse results ({len(filtered)}) — running focused scrape for '{destination}'...")
+            specific_hotels = await asyncio.to_thread(
                 self._run_scrape_booking_sync,
                 destination, checkin_dt, checkout_dt, budget,
-                max_pages=2  # focused neighborhood scrape
+                max_pages=2
             ) or []
-            merged = self._merge_unique(filtered, specific)
-
-            # Always cache after the specific scrape — even if results are still sparse.
-            # This ensures the specific scraper fires exactly ONCE per neighborhood.
-            # On the next search, Step 1 hits this cache and returns immediately.
-            final = merged if merged else filtered
-            nbhd_key = f"{city_slug}__{neighborhood_slug}"
-            self._save_to_cache(nbhd_key, final)
-            filtered = final
-
+            
+            merged = self._merge_unique(filtered, specific_hotels)
+            
+            # Save the final merged result as the specific neighborhood key
+            # This ensures Step 1 hits it next time (the "scrape once" rule)
+            final_hotels = merged if merged else filtered
+            self._save_to_cache(city_slug, search_key, final_hotels)
+            
             if not merged:
-                self._add_log(
-                    f"Specific scrape added no new hotels. Passing {len(filtered)} result(s) to AI."
-                )
+                 self._add_log(f"Focused scrape returned 0 new results. Using {len(filtered)} available hotels.")
+            
+            if final_hotels:
+                self._save_current_search(final_hotels)
+            return final_hotels
 
-        if filtered:
-            self._save_current_search(filtered)
-        return filtered
+        # No neighborhood, and we already handled the city cache check/scrape above
+        if city_hotels:
+            self._save_current_search(city_hotels)
+        return city_hotels
     
     def _run_scrape_booking_sync(self, destination, checkin, checkout, budget, max_pages):
         """Run the async scraper in a dedicated event loop"""
