@@ -328,13 +328,22 @@ class HotelScraper:
             if display_proc:
                 display_proc.terminate()
 
-        # De-duplicate by name
+        # De-duplicate by URL path (more reliable than name — same hotel can appear
+        # on multiple pages with identical names but Booking adds different tracking params).
+        # Strip query string so only the stable path (/hotel/in/...) is compared.
+        # Fall back to name if booking_url is empty.
         unique_hotels = []
-        seen_names = set()
+        seen_keys: set = set()
         for h in all_hotels:
-            if h["name"] not in seen_names:
+            url = h.get("booking_url", "")
+            if url:
+                from urllib.parse import urlparse
+                key = urlparse(url).path  # e.g. /hotel/in/goa-golden-palace.en-gb.html
+            else:
+                key = h["name"]
+            if key not in seen_keys:
                 unique_hotels.append(h)
-                seen_names.add(h["name"])
+                seen_keys.add(key)
 
         self._add_log(f"Scrape complete. Found {len(unique_hotels)} unique hotels.", len(unique_hotels))
         return unique_hotels
