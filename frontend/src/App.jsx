@@ -9,6 +9,7 @@ import TripDetailPage from './pages/TripDetailPage';
 import AdminPage from './pages/AdminPage';
 import { useScrollReveal } from './hooks/useAnimations';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { AuthProvider } from './context/AuthContext';
 
 // Run scroll reveal on every route change
 function ScrollRevealRunner() {
@@ -48,11 +49,12 @@ function AppInner() {
       style={{
         position: 'relative',
         minHeight: '100svh',
-        background: isDarkMode ? '#020d1e' : '#e0f2fe',
+        background: isDarkMode ? '#020d1e' : '#cce8f7',
         backgroundImage: isDarkMode ? darkGrad : lightGrad,
         backgroundSize: '200% 200%',
+        backgroundAttachment: 'fixed',
         animation: 'bgShift 20s ease-in-out infinite',
-        transition: 'background-color 0.6s ease',
+        transition: 'background-color 0.6s ease, background-image 0.6s ease',
       }}
     >
       {/* Fixed wave canvas (z-0) */}
@@ -78,11 +80,13 @@ function AppInner() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <Router>
-        <AppInner />
-      </Router>
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <Router>
+          <AppInner />
+        </Router>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 

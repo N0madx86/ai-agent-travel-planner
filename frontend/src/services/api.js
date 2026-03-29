@@ -10,8 +10,13 @@ const api = axios.create({
   },
 });
 
-// Generate or retrieve a persistent session ID for this browser
-const getSessionId = () => {
+// ── Session / User ID resolution ─────────────────────────────────────────
+// Prefer Google user ID (set by AuthContext) over anonymous session ID
+const getUserId = () => {
+  const googleUid = localStorage.getItem('tabi_user_id');
+  if (googleUid) return googleUid;
+
+  // Fall back to anonymous session for unauthenticated users
   let sid = localStorage.getItem('tabi_session_id');
   if (!sid) {
     sid = `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -22,8 +27,8 @@ const getSessionId = () => {
 
 // Trips API
 export const tripsAPI = {
-  create: (tripData) => api.post('/api/trips/', { ...tripData, session_id: getSessionId() }),
-  getAll: () => api.get('/api/trips/', { params: { session_id: getSessionId() } }),
+  create: (tripData) => api.post('/api/trips/', { ...tripData, session_id: getUserId() }),
+  getAll: () => api.get('/api/trips/', { params: { session_id: getUserId() } }),
   getOne: (id) => api.get(`/api/trips/${id}`),
   update: (id, tripData) => api.put(`/api/trips/${id}`, tripData),
   delete: (id) => api.delete(`/api/trips/${id}`),
@@ -50,7 +55,7 @@ export const imagesAPI = {
 };
 
 // ─── Keep-alive: ping backend every 13 min to prevent Render sleep ───
-const KEEP_ALIVE_INTERVAL = 13 * 60 * 1000; // 13 minutes
+const KEEP_ALIVE_INTERVAL = 13 * 60 * 1000;
 setInterval(() => {
   api.get('/health').catch(() => {}); // silent fail — best-effort
 }, KEEP_ALIVE_INTERVAL);

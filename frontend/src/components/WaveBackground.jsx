@@ -123,12 +123,20 @@ export default function WaveBackground() {
 
             const waterlineY = H * 0.62; // waves live in bottom 38%
 
+            // ── SOLID FLOOR: opaque base so dark body never bleeds through ──────
+            const floorGrad = ctx.createLinearGradient(0, waterlineY - 30, 0, H);
+            floorGrad.addColorStop(0,    'rgba(125, 211, 252, 0)');
+            floorGrad.addColorStop(0.15, 'rgba(56, 189, 248, 0.72)');
+            floorGrad.addColorStop(1,    'rgba(14, 116, 144, 0.92)');
+            ctx.fillStyle = floorGrad;
+            ctx.fillRect(0, waterlineY - 30, W, H - waterlineY + 30);
+
             // 4 overlapping wave layers, each with a distinct cyan/aqua tint
             const waveLayers = [
-                { speed: 0.18, freq: 0.0025, amp: 18, yOffset: 0.00, fillA: 'rgba(14, 165, 233, 0.18)', strokeA: 'rgba(255,255,255, 0.5)' },
-                { speed: 0.22, freq: 0.0018, amp: 14, yOffset: 0.05, fillA: 'rgba(6, 182, 212, 0.24)', strokeA: 'rgba(255,255,255, 0.45)' },
-                { speed: 0.14, freq: 0.0030, amp: 10, yOffset: 0.10, fillA: 'rgba(56, 189, 248, 0.28)', strokeA: 'rgba(255,255,255, 0.55)' },
-                { speed: 0.26, freq: 0.0020, amp: 8, yOffset: 0.14, fillA: 'rgba(186, 230, 253, 0.35)', strokeA: 'rgba(255,255,255, 0.6)' },
+                { speed: 0.18, freq: 0.0025, amp: 18, yOffset: 0.00, fillA: 'rgba(14, 165, 233, 0.22)', strokeA: 'rgba(255,255,255, 0.55)' },
+                { speed: 0.22, freq: 0.0018, amp: 14, yOffset: 0.05, fillA: 'rgba(6, 182, 212, 0.28)',  strokeA: 'rgba(255,255,255, 0.50)' },
+                { speed: 0.14, freq: 0.0030, amp: 10, yOffset: 0.10, fillA: 'rgba(56, 189, 248, 0.32)', strokeA: 'rgba(255,255,255, 0.60)' },
+                { speed: 0.26, freq: 0.0020, amp: 8,  yOffset: 0.14, fillA: 'rgba(186, 230, 253, 0.40)', strokeA: 'rgba(255,255,255, 0.65)' },
             ];
 
             waveLayers.forEach((wl, idx) => {
@@ -179,11 +187,11 @@ export default function WaveBackground() {
 
                 let y;
                 if (goingToLight) {
-                    // rush upward: start at bottom, end at top
-                    y = H - progress * (H + b.size * 2);
-                } else {
                     // rush downward: start at top, end at bottom
                     y = -b.size + progress * (H + b.size * 2);
+                } else {
+                    // rush upward: start at bottom, end at top
+                    y = H - progress * (H + b.size * 2);
                 }
 
                 // horizontal wobble

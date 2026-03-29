@@ -1,0 +1,96 @@
+well what if "Goa" search results in db also stored the location of hotel and if an iteration of "Goa,X" is searched that X is fetched from the "Goa" db ?? just a hypothetical idea11:33 AMThat's actually a really smart idea and not just hypothetical — it's close to how real travel apps work!
+The concept is called subset filtering:
+python# When "Goa, Calangute" is searched:
+
+# Step 1 — Check if "goa" already exists in cache
+goa_hotels = cache.get("hotels:goa")
+
+# Step 2 — If yes, filter by neighborhood instead of rescraping
+if goa_hotels:
+    calangute_hotels = [
+        h for h in goa_hotels 
+        if "calangute" in h["location"].lower()
+    ]
+    return calangute_hotels  # instant, no scraping!
+
+# Step 3 — Only scrape if "goa" isn't cached at all
+else:
+    scrape("Goa")  # scrape broadly, cache everything
+This is genuinely clever because:
+
+✅ "Goa, Calangute" never triggers a scrape if "Goa" is cached
+✅ One broad scrape covers all neighborhood variants
+✅ Zero extra DB storage
+✅ Instant response for subset searches
+
+The only weak point — Booking.com results for "Goa" might not include hotels tagged with "Calangute" in their location field. So the filter might return 0 results even though hotels exist there.
+Fix for that — scrape broadly and also store the raw search query Booking.com was given, so you know the coverage area.
+For a portfolio project this idea alone shows genuine system design thinking — worth mentioning in interviews! 👍yes so the first scrape will do a wide scrape like maybe more pages w/o any filters (even if first scrape is for goa, calangute -> scrape only goa (wide area)) and then if user searches a specific place and still the wide db doesn't have enough results (like less than 20ish) then do that specific place  scrape, kinda wonky but dunno11:37 AMThat's actually a clean and logical flow — not wonky at all:
+
+
+
+User searches "Goa, Calangute"
+        ↓
+Check cache for "goa" (wide)
+        ↓
+┌─── Wide cache EXISTS ──────────────┐
+│ Filter "calangute" from wide db    │
+│                                    │
+│ ≥ 30 results?                      │
+│   → send to LLM → show on UI ✅   │
+│                                    │
+│ < 30 results?                      │
+│   → scrape "Goa, Calangute" fully  │
+│   → cache as "goa:calangute"       │
+│   → send to LLM → show on UI ✅   │
+└────────────────────────────────────┘
+
+┌─── Wide cache MISSING ─────────────┐
+│ Scrape "Goa" wide first            │
+│ Cache as "goa"                     │
+│ Filter "calangute"                 │
+│                                    │
+│ ≥ 30 results? → LLM → UI ✅       │
+│ < 30 results? → scrape specific    │
+│   "Goa, Calangute"                 │
+│   cache as "goa:calangute"         │
+│   → LLM → UI ✅                   │
+└────────────────────────────────────┘
+
+
+
+The logic in code is literally:
+pythonasync def search_hotels(self, destination, checkin, checkout, budget):
+    city = normalize_destination(destination)        # "goa"
+    neighborhood = extract_neighborhood(destination) # "calangute" or None
+
+    # Step 1 — try broad cache first
+    hotels = cache.get(f"hotels:{city}")
+
+    # Step 2 — broad cache miss → wide scrape
+    if not hotels:
+        hotels = await scraper.search(city, max_pages=5)
+        cache.set(f"hotels:{city}", hotels, ttl=86400)
+
+    # Step 3 — filter by neighborhood if specified
+    if neighborhood:
+        filtered = [
+            h for h in hotels
+            if neighborhood in h["location"].lower()
+        ]
+        # Step 4 — not enough? specific scrape
+        if len(filtered) < 20:
+            specific = await scraper.search(destination, max_pages=3)
+            # merge without duplicates
+            existing_names = {h["name"] for h in filtered}
+            filtered += [h for h in specific if h["name"] not in existing_names]
+            cache.set(f"hotels:{city}:{neighborhood}", filtered, ttl=86400)
+        return filtered
+
+    return hotels
+The beauty of this approach:
+
+✅ Wide scrape happens once, covers most neighborhood queries for free
+✅ Specific scrape only fires when genuinely needed
+✅ Results get cached at neighborhood level too so second search is instant
+✅ Scales naturally — popular cities get wide cached, obscure ones get specific

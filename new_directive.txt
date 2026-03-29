@@ -1,0 +1,66 @@
+# Rotate these free proxy headers to look like different users
+# Add to your context:
+context = await browser.new_context(
+    user_agent=random.choice(USER_AGENTS),  # rotate UAs
+    locale=random.choice(['en-IN', 'en-US', 'en-GB']),
+    timezone_id=random.choice(['Asia/Kolkata', 'America/New_York']),
+)
+
+
+
+# Instead of looping pages one by one
+tasks = [scrape_page(url, offset) for offset in offsets]
+results = await asyncio.gather(*tasks)
+
+
+##new workflow##
+
+User searches "Hotels in Paris"
+        ↓
+Booking.com scraper runs ONCE
+        ↓
+Results cached in your DB (Redis/Postgres) with a TTL of 24hrs
+        ↓
+Next 100 users searching "Hotels in Paris" → served from cache instantly
+        ↓
+Scraper only runs again when cache expires
+This solves literally everything:
+
+✅ No IP blocks — scraper runs maybe 10-20x/day max instead of per-user
+✅ Fast responses for users (cache hit = instant)
+✅ No API limits to worry about
+✅ No monthly costs
+✅ Your existing Booking.com scraper works as-is
+
+
+
+Same destination + dates searched twice? Second user gets instant results from cache, scraper never fires again until TTL expires.
+You already have _save_current_search and clear_current_search in your scraper — that's basically half the caching logic already there.
+
+
+
+
+The wait for first user — yeah that's unavoidable with scraping. But you can mask it:
+User searches → Show "Searching best hotels for you..." 
+             → Stream results as they come in (SSE/WebSocket)
+             → Feels faster even if it's not
+Database size — actually not a concern at all:
+1 hotel entry ≈ ~500 bytes JSON
+100 hotels per city ≈ 50KB
+1000 cities cached ≈ 50MB
+50MB total for a massive cache. Postgres/Redis on Render's free tier gives you 512MB–1GB free. You'd never hit the limit for a small project.
+The real question is your cache strategy:
+python# Option A — Cache by destination only (coarse, more reuse)
+key = f"hotels:{destination}"  # "Paris" → same results regardless of dates
+# TTL: 24hrs, prices shown as "from ₹X/night" 
+# Book Now → deep links to Booking.com with actual dates filled in
+
+# Option B — Cache by destination+dates (precise, less reuse)  
+key = f"hotels:{destination}:{checkin}:{checkout}"
+# More accurate but cache rarely hits
+For your use case Option A is smarter — show price ranges, let Booking.com handle the exact date pricing when they click "Book Now". This way:
+
+✅ Cache hits constantly (everyone searching Paris gets same results)
+✅ Tiny DB footprint
+✅ First user waits once, everyone after is instant
+✅ No scraper running per-user

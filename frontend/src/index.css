@@ -241,8 +241,8 @@
   }
 
   .input-field option {
-    background: #020d1e;
-    color: #d1ecff;
+    background: var(--input-bg);
+    color: var(--text-main);
   }
 
   /* Calendar picker icon — invert in dark mode for visibility */
@@ -607,6 +607,37 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes tabSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Leaflet map tiles — prevent dark canvas bleed in light mode */
+.leaflet-container {
+  background: #e0f2fe;
+}
+
+/* Fix any stray dark horizontal stripe in light mode — ensure body min-height stays consistent */
+.light-mode body,
+.light-mode .wave-bg {
+  background-color: transparent;
+}
+
+/* Leaflet popup styling */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18) !important;
+}
+.leaflet-popup-tip-container {
+  display: none;
 }
 
 /* ════════════════════════════════════════════════════

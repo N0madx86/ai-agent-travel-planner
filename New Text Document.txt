@@ -1,0 +1,135 @@
+async def _extract_trivago_card(self, card, currency: str) -> Optional[Dict]:
+    try:
+        # ── 1. Name ───────────────────────────────────────────────────────────
+        name = "Unknown Hotel"
+        name_el = await card.query_selector('a.Obrlah, [data-testid="item-name"]')
+        if name_el:
+            name = (await name_el.inner_text()).strip()
+
+        # ── 2. Price ──────────────────────────────────────────────────────────
+        price = 0.0
+        price_text = ""
+
+        # Step 1: Try known precise selectors first
+        PRICE_SELECTORS = [
+            '[data-testid="recommended-price"]',
+            '[data-testid="final-price"]',
+            '[data-testid="display-price"]',
+            '[itemprop="price"]',
+            'strong[data-testid]',
+            '.c0iAld',                        # common Trivago price class
+            '.price__value',
+            'div[class*="price"] span',
+            'span[class*="price"]',
+        ]
+        for sel in PRICE_SELECTORS:
+            try:
+                el = await card.query_selector(sel)
+                if el:
+                    t = (await el.text_content() or "").strip()
+                    if t and re.search(r'\d{2,}', t):
+                        price_text = t
+                        break
+            except:
+                continue
+
+        # Step 2: Walk ALL text nodes in the card via JS tree walker
+        # and pick the one that looks most like a price
+        if not price_text:
+            all_texts = await card.evaluate(r'''(card) => {
+                const walker = document.createTreeWalker(
+                    card, NodeFilter.SHOW_TEXT, null, false
+                );
+                const texts = [];
+                let node;
+                while ((node = walker.nextNode())) {
+                    const t = node.textContent.trim();
+                    if (t.length > 0) texts.push(t);
+                }
+                return texts;
+            }''')
+
+            CURRENCY_RE = re.compile(r'[₹$€£¥]')
+            DIGITS_RE   = re.compile(r'\d{2,}')
+            best, best_score = "", 0
+            for t in all_texts:
+                score = 0
+                if CURRENCY_RE.search(t): score += 3
+                if DIGITS_RE.search(t):   score += 2
+                if re.search(r'[,.]', t): score += 1
+                if score > best_score and score >= 4:
+                    best_score = score
+                    best = t
+            price_text = best
+
+        # Step 3: Parse the price string into a float
+        # Handles ₹1,23,456 / 1.234,56 / 1,234.56 formats
+        if price_text:
+            cleaned = re.sub(r'[^\d.,]', '', price_text)
+            if cleaned.count(',') > 0 and cleaned.count('.') > 0:
+                if cleaned.rindex('.') > cleaned.rindex(','):
+                    cleaned = cleaned.replace(',', '')           # 1,234.56
+                else:
+                    cleaned = cleaned.replace('.', '').replace(',', '.')  # 1.234,56
+            elif cleaned.count(',') == 1 and len(cleaned.split(',')[-1]) <= 2:
+                cleaned = cleaned.replace(',', '.')              # 1234,56
+            else:
+                cleaned = cleaned.replace(',', '')               # 1,23,456
+            try:
+                price = float(cleaned)
+            except ValueError:
+                logger.debug(f"Could not parse price: '{price_text}' → '{cleaned}'")
+
+        # ── 3. Rating ─────────────────────────────────────────────────────────
+        rating = None
+        rating_el = await card.query_selector('button.z0r8aI, [data-testid="rating-value"]')
+        if rating_el:
+            m = re.search(r'(\d+\.?\d*)', await rating_el.inner_text())
+            if m:
+                rating = float(m.group(1))
+
+        # ── 4. Location ───────────────────────────────────────────────────────
+        location = "Trivago Deal"
+        loc_el = await card.query_selector('button.bGyY4A, [data-testid="distance-label"]')
+        if loc_el:
+            location = (await loc_el.inner_text()).strip()
+
+        # ── 5. Image ──────────────────────────────────────────────────────────
+        img_url = None
+        img_el = await card.query_selector(
+            '[data-testid="accommodation-main-image"] img, img.ZQrQVl'
+        )
+        if img_el:
+            img_url = (
+                await img_el.get_attribute('src') or
+                await img_el.get_attribute('data-src') or
+                await img_el.get_attribute('data-lazy-src')
+            )
+
+        # ── 6. Booking link ───────────────────────────────────────────────────
+        link = ""
+        link_el = await card.query_selector('a.Obrlah')
+        if link_el:
+            link = await link_el.get_attribute('href') or ""
+            if link.startswith('/'):
+                link = f"https://www.trivago.com{link}"
+
+        # ── Debug: log if price is still 0 ───────────────────────────────────
+        if price == 0:
+            raw = (await card.inner_text())[:300]
+            logger.warning(f"[Price=0] {name!r} | card text: {raw!r}")
+
+        return {
+            "name": name,
+            "location": location,
+            "price_per_night": price,
+            "currency": currency,
+            "rating": rating,
+            "image_url": img_url,
+            "booking_url": link,
+            "source": "trivago.com",
+        }
+
+    except Exception as e:
+        logger.debug(f"Failed to extract Trivago card: {e}")
+        return None

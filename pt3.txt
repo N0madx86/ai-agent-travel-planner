@@ -1,0 +1,54 @@
+User searches "Goa, Calangute"
+        ↓
+Normalize → city = "Goa", neighborhood = "Calangute"
+        ↓
+Check wide cache for "goa"
+        ↓
+┌─── Cache HIT ──────────────────────┐
+│ Filter "calangute" from wide db    │
+│                                    │
+│ ≥ 15 results?                      │
+│   → LLM picks best 5 → UI ✅      │
+│                                    │
+│ < 15 results?                      │
+│   → scrape "Goa, Calangute"        │
+│   → cache as "goa:calangute"       │
+│   → LLM picks best 5 → UI ✅      │
+└────────────────────────────────────┘
+
+┌─── Cache MISSING ─────────────────────┐
+│ Scrape "Goa" wide (4 pages)        │
+│ Cache as "goa"                     │
+│        ↓                           │
+│ Filter "calangute"                 │
+│                                    │
+│ ≥ 15 results?                      │
+│   → LLM picks best 5 → UI ✅      │
+│                                    │
+│ < 15 results?                      │
+│   → scrape "Goa, Calangute"        │
+│   → cache as "goa:calangute"       │
+│   → LLM picks best 5 → UI ✅      │
+└────────────────────────────────────┘
+
+LLM evaluates strictly on:
+  - Budget match
+  - Rating
+  - Location relevance  
+  - Value for money
+
+  And honestly 5 categories gives the user enough variety to choose from without decision paralysis. Every user type is covered:
+
+    Budget traveler → Budget Pick
+    First timer → Best Overall
+    Foodie/explorer → Best Location
+    Quality conscious → Highest Rated
+    Smart spender → Best Value
+
+
+
+the text location of scraped data is in 
+
+
+<span class="d823fbbeed f9b3563dd4" data-testid="address-link">Calangute</span>
+<span class="d823fbbeed f9b3563dd4" data-testid="address-link">Santa Cruz</span>

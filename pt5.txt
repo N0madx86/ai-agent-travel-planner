@@ -1,0 +1,70 @@
+frontend/QOL:
+
+┌─────────────────────────────────────────────────────┐
+│  Where to Stay                                      │
+├──────────────────────┬──────────────────────────────┤
+│                      │                              │
+│  🏨 Hotel Card 1     │                              │
+│  🏨 Hotel Card 2     │      MAP (collapsable)       │
+│  🏨 Hotel Card 3     │                              │
+│  🏨 Hotel Card 4     │                              │
+│  🏨 Hotel Card 5     │                              │
+│                      │                              │
+└──────────────────────┴──────────────────────────────┘
+
+         [ Generate Itinerary ]
+                  ↓
+┌──────────────────────┬──────────────────────────────┐
+│                      │                              │
+│  📅 Day 1            │   📸 Place images            │
+│  📅 Day 2     ←──────│   🗺️ Route on map            │
+│  📅 Day 3   slides   │                              │
+│  📅 Day 4            │                              │
+│                      │                              │
+└──────────────────────┴──────────────────────────────┘
+The split layout solves ALL your problems at once:
+
+✅ No more wasted side margins — full width used
+✅ Map adds context without taking over the screen
+✅ Itinerary slide-in feels like a native app transition
+✅ Images on right for itinerary = rich visual experience
+
+
+
+
+Like a tab switcher at the top that swaps the whole panel:
+┌─────────────────────────────────────────────────────┐
+│   [ 🏨 Hotels ]  [ 📅 Itinerary ]                   │
+├──────────────────────┬──────────────────────────────┤
+│                      │                              │
+│                      │                              │
+│   LEFT PANEL         │      RIGHT PANEL             │
+│   (switches based    │      (map stays persistent,  │
+│    on active tab)    │       updates per tab)       │
+│                      │                              │
+│                      │                              │
+└──────────────────────┴──────────────────────────────┘
+
+Hotels tab active:          Itinerary tab active:
+LEFT  = Hotel cards         LEFT  = Day by day plan
+RIGHT = Map with hotel      RIGHT = Map with route
+        pins                        + place images
+  
+The map on the right stays persistent/(collapsable) — it just updates its pins/route depending on which tab is active. That's the smoothest UX, no jarring layout shifts.
+The tab switch animation:
+Hotels → Itinerary:
+  Left panel slides out left, itinerary slides in from right
+  Map smoothly updates pins to route
+
+
+
+
+few more QOLs:
+
+1. in plan trip, decompose it to no of adults, child, pets(yes/no) 
+2. in lightmode theres a dark blue horizontal margin from dark mode fix that 
+3. the switch between light and dark mode the bubble surge direction is reversed
+4. add google signup/signin and save user data to database
+5. the my trips's trips will save to respective user's account 
+
+add a splash of magic to the ui, make it more interactive and engaging and user friendly.

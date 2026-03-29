@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Waves, Map, Calendar, Menu, X, Sun, Moon } from 'lucide-react';
+import { Waves, Map, Calendar, Menu, X, Sun, Moon, LogIn, LogOut } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * Bulletproof nav link — the box model NEVER changes between active/inactive.
@@ -61,6 +62,7 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const { isDarkMode, toggleTheme } = useTheme();
+  const { user, signIn, signOut, authLoading } = useAuth();
 
   const navLinks = [
     { path: '/', label: 'Home', icon: Waves },
@@ -110,11 +112,11 @@ export default function Navbar() {
               ))}
             </div>
 
-            {/* Theme Toggle Button */}
+            {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
               style={{
-                marginLeft: '12px',
+                marginLeft: '4px',
                 padding: '8px',
                 borderRadius: '50%',
                 background: 'rgba(13,141,232,0.1)',
@@ -127,10 +129,83 @@ export default function Navbar() {
                 transition: 'all 0.3s ease',
               }}
               className="hover:scale-110 active:scale-95"
-              title={isDarkMode ? 'Switch to Surface (Light)' : 'Switch to Submerged (Dark)'}
+              title={isDarkMode ? 'Switch to Light' : 'Switch to Dark'}
             >
               {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
+
+            {/* ── Google Sign-in / User Avatar ── */}
+            {user ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '4px' }}>
+                {/* Avatar */}
+                <div style={{ position: 'relative', cursor: 'pointer' }}>
+                  <img
+                    src={user.picture}
+                    alt={user.name}
+                    title={user.name}
+                    style={{
+                      width: '34px', height: '34px', borderRadius: '50%',
+                      border: '2px solid rgba(56,168,245,0.5)',
+                      boxShadow: '0 0 12px rgba(13,141,232,0.3)',
+                      transition: 'transform 0.2s',
+                      objectFit: 'cover',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.08)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                  />
+                </div>
+                {/* Sign Out */}
+                <button
+                  onClick={signOut}
+                  title="Sign out"
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    background: 'rgba(239,68,68,0.1)',
+                    border: '1px solid rgba(239,68,68,0.25)',
+                    color: 'rgba(248,113,113,0.9)',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.25)'; }}
+                >
+                  <LogOut size={13} /> Sign out
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={signIn}
+                disabled={authLoading}
+                style={{
+                  marginLeft: '4px',
+                  padding: '7px 16px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #0060c7, #0d8de8)',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: authLoading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 4px 16px rgba(13,141,232,0.35)',
+                  transition: 'all 0.25s',
+                  opacity: authLoading ? 0.65 : 1,
+                }}
+                onMouseEnter={e => !authLoading && (e.currentTarget.style.transform = 'translateY(-1px)', e.currentTarget.style.boxShadow = '0 6px 22px rgba(13,141,232,0.5)')}
+                onMouseLeave={e => (e.currentTarget.style.transform = '', e.currentTarget.style.boxShadow = '0 4px 16px rgba(13,141,232,0.35)')}
+              >
+                <LogIn size={14} />
+                {authLoading ? 'Signing in…' : 'Sign in with Google'}
+              </button>
+            )}
           </div>
 
           {/* ── Mobile toggle ── */}
@@ -166,6 +241,28 @@ export default function Navbar() {
                 </Link>
               );
             })}
+            {/* Mobile sign in/out */}
+            <div style={{ padding: '8px 16px' }}>
+              {user ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <img src={user.picture} alt={user.name} style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px solid rgba(56,168,245,0.4)' }} />
+                  <span style={{ fontSize: '0.8rem', color: 'rgba(126,200,246,0.7)', flex: 1 }}>{user.name}</span>
+                  <button onClick={signOut} style={{ fontSize: '0.75rem', color: 'rgba(248,113,113,0.8)', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                    Sign out
+                  </button>
+                </div>
+              ) : (
+                <button onClick={signIn} disabled={authLoading} style={{
+                  width: '100%', padding: '10px', borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #0060c7, #0d8de8)',
+                  border: 'none', color: '#fff', fontSize: '0.85rem', fontWeight: 700,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                }}>
+                  <LogIn size={15} />
+                  {authLoading ? 'Signing in…' : 'Sign in with Google'}
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

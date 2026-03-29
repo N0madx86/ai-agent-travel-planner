@@ -1,0 +1,88 @@
+so what about everything will store in goa.json like goa,calangute, goa,arjuna everything in one json and yea only scrape exactly what the user typed rest you know4:35 PMYes! That's actually cleaner than separate cache keys:
+
+goa.json
+├── "goa"              → [...100 hotels]
+├── "goa:calangute"    → [...15 hotels]
+├── "goa:arjuna"       → [...8 hotels]
+└── "goa:baga"         → [...12 hotels]
+
+
+One file per city, all neighborhoods inside it:
+
+
+pythondef get_cache(city):
+    path = f"cache/{city}.json"
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+def save_cache(city, key, hotels):
+    data = get_cache(city)
+    data[key] = {
+        "hotels": hotels,
+        "cached_at": datetime.now().isoformat()
+    }
+    with open(f"cache/{city}.json", "w") as f:
+        json.dump(data, f)
+
+# Reading:
+cache = get_cache("goa")
+hotels = cache.get("goa:calangute", {}).get("hotels", [])
+
+# Writing:
+save_cache("goa", "goa:calangute", scraped_hotels)
+```
+
+**The flow:**
+```
+User searches "Goa, Calangute"
+        ↓
+normalize → city="goa", key="goa:calangute"
+        ↓
+load goa.json → check key "goa:calangute"
+        ↓
+EXISTS → LLM → UI ✅
+MISSING → scrape "Goa, Calangute"
+        → save to goa.json under "goa:calangute"
+        → LLM → UI ✅
+Clean, simple, one file per city grows naturally as users search. 🎯
+
+
+
+
+USER SEARCHES e.g. "Goa, Calangute"
+        ↓
+NORMALIZE
+  → city = "goa"
+  → key  = "goa:calangute"
+        ↓
+LOAD goa.json
+        ↓
+┌─── KEY "goa:calangute" EXISTS ─────┐
+│ Return cached hotels               │
+│ → Send to LLM                      │
+│ → LLM picks best 5                 │
+│ → Show on UI ✅                    │
+└────────────────────────────────────┘
+
+┌─── KEY "goa:calangute" MISSING ────┐
+│ Scrape Booking.com                 │
+│ query = "Goa, Calangute"           │
+│ max_pages = 3                      │
+│         ↓                          │
+│ Save to goa.json                   │
+│ under key "goa:calangute"          │
+│         ↓                          │
+│ → Send to LLM                      │
+│ → LLM picks best 5                 │
+│ → Show on UI ✅                    │
+└────────────────────────────────────┘
+
+NOTES FOR IMPLEMENTATION:
+  - One .json file per city (goa.json, delhi.json etc)
+  - Key format: "city:neighborhood" or just "city"
+  - Cache TTL: 24hrs (check cached_at timestamp)
+  - LLM always picks best 5 regardless of pool size
+  - If scrape returns 0 → show "No hotels found" message
+  - Max 1 scrape attempt per search, never retry loop
