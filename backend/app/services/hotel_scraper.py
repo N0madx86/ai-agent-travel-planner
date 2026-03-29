@@ -338,7 +338,7 @@ class HotelScraper:
                         '--disable-dev-shm-usage',
                         '--disable-gpu',
                         '--disable-software-rasterizer',
-                        '--disable-extensions',
+                        '--window-size=1920,1080',
                     ]
                 )
 
@@ -350,8 +350,27 @@ class HotelScraper:
                     timezone_id=timezone,
                     extra_http_headers={
                         'Accept-Language': 'en-US,en;q=0.9',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                        'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+                        'sec-ch-ua-mobile': '?0',
+                        'sec-ch-ua-platform': '"Windows"',
+                        'Upgrade-Insecure-Requests': '1',
                     }
                 )
+
+                # ── Override webdriver flag BEFORE any page JS runs ───────────
+                await context.add_init_script("""
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => undefined,
+                    });
+                    Object.defineProperty(navigator, 'plugins', {
+                        get: () => [1, 2, 3, 4, 5],
+                    });
+                    Object.defineProperty(navigator, 'languages', {
+                        get: () => ['en-US', 'en'],
+                    });
+                    window.chrome = { runtime: {} };
+                """)
 
                 page = await context.new_page()
                 await stealth_async(page)
@@ -364,15 +383,35 @@ class HotelScraper:
                     url = f"{base_url}&offset={offset}&rows=25"
                     self._add_log(f"Scraping page {page_num} (offset {offset}, rows 25)...")
 
-
                     try:
                         await page.goto(url, wait_until='domcontentloaded', timeout=60000)
                         await asyncio.sleep(2)
 
+                        # ── Dismiss GDPR cookie consent if present ────────────
+                        for consent_sel in [
+                            '[data-testid="accept-button"]',
+                            '#onetrust-accept-btn-handler',
+                            'button[id*="accept"]',
+                            'button[class*="accept"]',
+                        ]:
+                            try:
+                                btn = await page.query_selector(consent_sel)
+                                if btn:
+                                    await btn.click()
+                                    await asyncio.sleep(1)
+                                    logger.info(f"Dismissed consent dialog via: {consent_sel}")
+                                    break
+                            except Exception:
+                                pass
+
                         try:
                             await page.wait_for_selector('[data-testid="property-card"]', timeout=15000)
                         except PlaywrightTimeout:
-                            self._add_log(f"Page {page_num}: no property cards found.")
+                            # Log what page we actually got to help diagnose blocks
+                            page_title = await page.title()
+                            page_url = page.url
+                            logger.warning(f"Page {page_num}: no property cards found. Title='{page_title}' URL={page_url[:80]}")
+                            self._add_log(f"Page {page_num}: no results (title: '{page_title[:60]}')")
                             continue
 
                         cards = await page.query_selector_all('[data-testid="property-card"]')
@@ -385,13 +424,13 @@ class HotelScraper:
                         new_count = len(all_hotels) - initial_count
                         self._add_log(f"Page {page_num}: found {len(cards)} cards ({new_count} hotels extracted).")
 
-
                     except Exception as e:
                         logger.error(f"Error scraping page {page_num}: {e}")
                         continue
 
                 await context.close()
                 await browser.close()
+
         finally:
             if display_proc:
                 display_proc.terminate()
