@@ -134,7 +134,7 @@ export default function Navbar() {
               {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
 
-            {/* ── Google Sign-in / User Avatar ── */}
+            {/* ── GitHub Sign-in / User Avatar ── */}
             {user ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '4px' }}>
                 {/* Avatar */}
@@ -203,7 +203,7 @@ export default function Navbar() {
                 onMouseLeave={e => (e.currentTarget.style.transform = '', e.currentTarget.style.boxShadow = '0 4px 16px rgba(13,141,232,0.35)')}
               >
                 <LogIn size={14} />
-                {authLoading ? 'Signing in…' : 'Sign in with Google'}
+                {authLoading ? 'Signing in…' : 'Sign in with GitHub'}
               </button>
             )}
           </div>
@@ -259,7 +259,7 @@ export default function Navbar() {
                   cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                 }}>
                   <LogIn size={15} />
-                  {authLoading ? 'Signing in…' : 'Sign in with Google'}
+                  {authLoading ? 'Signing in…' : 'Sign in with GitHub'}
                 </button>
               )}
             </div>

@@ -59,25 +59,23 @@ export default function WaveBackground() {
             ctx.fillStyle = 'rgba(2, 13, 30, 0.52)';
             ctx.fillRect(0, 0, W, H);
 
-            // Ocean current layers — slightly enhanced with more variety
+            // Ocean current layers — reduced count for perf
             const layers = [
-                { amp: 58, freq: 0.0018, speed: 0.35, color: 'rgba(13, 141, 232, 0.11)' },
-                { amp: 78, freq: 0.0010, speed: 0.18, color: 'rgba(0, 96, 199, 0.08)' },
-                { amp: 38, freq: 0.0028, speed: 0.55, color: 'rgba(16, 185, 129, 0.06)' },
-                { amp: 95, freq: 0.0007, speed: 0.12, color: 'rgba(56, 168, 245, 0.06)' },
-                { amp: 45, freq: 0.0022, speed: 0.28, color: 'rgba(99, 102, 241, 0.05)' }, // subtle purple
+                { amp: 55, freq: 0.0018, speed: 0.30, color: 'rgba(13, 141, 232, 0.11)' },
+                { amp: 75, freq: 0.0010, speed: 0.16, color: 'rgba(0, 96, 199, 0.08)' },
+                { amp: 40, freq: 0.0025, speed: 0.45, color: 'rgba(16, 185, 129, 0.06)' },
             ];
 
             layers.forEach(l => {
-                for (let i = -3; i <= 3; i++) {
+                for (let i = -2; i <= 2; i++) {
                     ctx.beginPath();
                     ctx.strokeStyle = l.color;
                     ctx.lineWidth = 1.5;
-                    const yBase = H * 0.5 + i * (H / 7);
-                    for (let x = 0; x <= W; x += 8) {
+                    const yBase = H * 0.5 + i * (H / 6);
+                    for (let x = 0; x <= W; x += 14) { // coarser step = fewer vertices
                         const y = yBase
                             + Math.sin(x * l.freq + t * l.speed) * l.amp
-                            + Math.cos(x * 0.0008 - t * 0.08) * 18;
+                            + Math.cos(x * 0.0008 - t * 0.07) * 16;
                         x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                     }
                     ctx.stroke();
@@ -233,7 +231,7 @@ export default function WaveBackground() {
                 drawShore(W, H, t);
             }
 
-            state.current.time += 0.010; // nice and slow
+            state.current.time += 0.007; // slower = less CPU
             raf = requestAnimationFrame(draw);
         };
 

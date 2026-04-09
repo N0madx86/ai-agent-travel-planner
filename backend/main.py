@@ -53,12 +53,13 @@ async def health():
     return {"status": "healthy"}
 
 # Import routers
-from app.api import hotels, trips, itineraries, images
+from app.api import hotels, trips, itineraries, images, auth
 
 app.include_router(hotels.router, prefix="/api/hotels", tags=["Hotels"])
 app.include_router(trips.router, prefix="/api/trips", tags=["Trips"])
 app.include_router(itineraries.router, prefix="/api/itineraries", tags=["Itineraries"])
 app.include_router(images.router, prefix="/api/images", tags=["Images"])
+app.include_router(auth.router)
 
 if __name__ == "__main__":
     import uvicorn

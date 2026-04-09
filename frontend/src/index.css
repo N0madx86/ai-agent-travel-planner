@@ -97,6 +97,8 @@
     overflow-x: hidden;
     transition: background-color 0.6s ease, color 0.4s ease;
     -webkit-font-smoothing: antialiased;
+    /* Improve scroll performance */
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -113,21 +115,19 @@
     z-index: 0;
   }
 
-  /* ── Glass cards */
+  /* ── Glass cards — no backdrop-filter for scroll perf */
   .card {
     background: var(--glass-card);
-    backdrop-filter: blur(18px) saturate(1.4);
-    -webkit-backdrop-filter: blur(18px) saturate(1.4);
     border: 1px solid var(--glass-border);
     border-radius: 1.25rem;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
   }
 
   .card-hover:hover {
     border-color: rgba(56, 168, 245, 0.38);
-    box-shadow: 0 12px 44px rgba(13, 141, 232, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.09);
-    transform: translateY(-4px);
+    box-shadow: 0 10px 36px rgba(13, 141, 232, 0.18);
+    transform: translateY(-3px);
   }
 
   /* ── Primary button */
@@ -291,19 +291,18 @@
     font-weight: 700;
   }
 
-  /* ── Day cards */
+  /* ── Day cards — no backdrop-filter for scroll perf */
   .day-card {
     background: var(--glass-card);
-    backdrop-filter: blur(14px);
     border: 1px solid var(--glass-border);
-    border-radius: 1.5rem;
+    border-radius: 1.25rem;
     overflow: hidden;
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
   }
 
   .day-card:hover {
-    border-color: rgba(56, 168, 245, 0.3);
-    box-shadow: 0 12px 40px rgba(13, 141, 232, 0.15);
+    border-color: rgba(56, 168, 245, 0.28);
+    box-shadow: 0 8px 32px rgba(13, 141, 232, 0.12);
   }
 
   /* ── Timeline */
@@ -590,11 +589,16 @@
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.55s ease both;
+  animation: fadeIn 0.5s ease both;
 }
 
 .animate-slide-up {
   animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 @keyframes slideUp {

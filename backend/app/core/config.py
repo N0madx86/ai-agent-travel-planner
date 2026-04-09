@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     
     # OpenRouter
     OPENROUTER_API_KEY: str = ""
+    OPENROUTER_MODEL: str = "openai/gpt-oss-20b:free"
     
     # Unsplash
     UNSPLASH_ACCESS_KEY: str = ""
@@ -26,6 +27,11 @@ class Settings(BaseSettings):
     
     # CORS
     CORS_ORIGINS: List[str] = ["*"]
+
+    # GitHub OAuth
+    GITHUB_CLIENT_ID: str = ""
+    GITHUB_CLIENT_SECRET: str = ""
+    FRONTEND_URL: str = "https://tabi-ito.vercel.app"
     
     class Config:
         env_file = ".env"

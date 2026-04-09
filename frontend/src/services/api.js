@@ -11,10 +11,10 @@ const api = axios.create({
 });
 
 // ── Session / User ID resolution ─────────────────────────────────────────
-// Prefer Google user ID (set by AuthContext) over anonymous session ID
+// Prefer GitHub/Auth user ID (set by AuthContext) over anonymous session ID
 const getUserId = () => {
-  const googleUid = localStorage.getItem('tabi_user_id');
-  if (googleUid) return googleUid;
+  const userUid = localStorage.getItem('tabi_user_id');
+  if (userUid) return userUid;
 
   // Fall back to anonymous session for unauthenticated users
   let sid = localStorage.getItem('tabi_session_id');

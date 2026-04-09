@@ -7,6 +7,7 @@ import PlanTripPage from './pages/PlanTripPage';
 import MyTripsPage from './pages/MyTripsPage';
 import TripDetailPage from './pages/TripDetailPage';
 import AdminPage from './pages/AdminPage';
+import GitHubCallbackPage from './pages/GitHubCallbackPage';
 import { useScrollReveal } from './hooks/useAnimations';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
@@ -71,6 +72,7 @@ function AppInner() {
             <Route path="/trips" element={<MyTripsPage />} />
             <Route path="/trips/:id" element={<TripDetailPage />} />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/auth/github/callback" element={<GitHubCallbackPage />} />
           </Routes>
         </main>
       </div>

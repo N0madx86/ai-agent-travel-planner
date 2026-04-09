@@ -69,7 +69,7 @@ LOAD goa.json
 ┌─── KEY "goa:calangute" MISSING ────┐
 │ Scrape Booking.com                 │
 │ query = "Goa, Calangute"           │
-│ max_pages = 3                      │
+│ max_pages = 2                      │
 │         ↓                          │
 │ Save to goa.json                   │
 │ under key "goa:calangute"          │

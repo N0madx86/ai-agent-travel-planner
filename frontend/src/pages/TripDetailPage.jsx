@@ -4,19 +4,20 @@ import {
   Calendar, Users, IndianRupee, MapPin, Loader2,
   Hotel, Star, RefreshCw, Waves, Camera, ChevronLeft,
   ChevronRight, X as XIcon, Image as ImageIcon,
-  ChevronRight as CollapseRight, PanelRightClose, PanelRightOpen,
+  PanelRightClose, PanelRightOpen, ExternalLink,
+  Sparkles, Navigation,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import api, { tripsAPI, hotelsAPI, itinerariesAPI } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useRipple } from '../hooks/useAnimations';
 
-// Leaflet (lazy-loaded to avoid SSR issues)
+// Leaflet
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix Leaflet's default icon path broken by bundlers
+// Fix Leaflet default icon paths
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -24,15 +25,65 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-// Hotel pin icon
-const hotelIcon = new L.DivIcon({
-  html: `<div style="background:linear-gradient(135deg,#0060c7,#0d8de8);width:32px;height:32px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 4px 14px rgba(13,141,232,0.5);display:flex;align-items:center;justify-content:center;">
-    <span style="transform:rotate(45deg);font-size:14px">🏨</span></div>`,
+// Custom hotel location pin
+const makeHotelIcon = (color = '#0d8de8') => new L.DivIcon({
+  html: `<div style="
+    position:relative;width:36px;height:36px;
+    display:flex;align-items:center;justify-content:center;
+  ">
+    <div style="
+      width:32px;height:32px;border-radius:50% 50% 50% 0;
+      background:linear-gradient(135deg,${color},#56a8f5);
+      transform:rotate(-45deg);
+      border:2px solid #fff;
+      box-shadow:0 4px 16px rgba(0,0,0,0.35);
+    "></div>
+    <span style="
+      position:absolute;font-size:14px;
+      transform:rotate(0deg);line-height:1;
+    ">🏨</span>
+  </div>`,
   className: '',
-  iconSize: [32, 32],
-  iconAnchor: [16, 32],
-  popupAnchor: [0, -36],
+  iconSize: [36, 36],
+  iconAnchor: [18, 36],
+  popupAnchor: [0, -40],
 });
+const hotelIcon = makeHotelIcon();
+
+// Destination pin
+const destIcon = new L.DivIcon({
+  html: `<div style="
+    background:linear-gradient(135deg,#10b981,#34d399);
+    width:28px;height:28px;border-radius:50% 50% 50% 0;
+    transform:rotate(-45deg);border:2px solid #fff;
+    box-shadow:0 4px 16px rgba(16,185,129,0.5);
+    display:flex;align-items:center;justify-content:center;
+  "><span style="transform:rotate(45deg);font-size:12px">📍</span></div>`,
+  className: '',
+  iconSize: [28, 28],
+  iconAnchor: [14, 28],
+  popupAnchor: [0, -32],
+});
+
+// ─── Geocode a hotel name+location string ────────────────────
+async function geocodeHotel(name, location, destination) {
+  const queries = [
+    `${name}, ${location}, ${destination}`,
+    `${name}, ${destination}`,
+    `${location}, ${destination}`,
+  ];
+  for (const q of queries) {
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      const data = await r.json();
+      if (data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    } catch { /* try next */ }
+  }
+  return null;
+}
 
 // ─── Markdown parser ──────────────────────────────────────────
 function parseItinerarySections(content) {
@@ -64,10 +115,9 @@ function parseItinerarySections(content) {
   return sections;
 }
 
-// ─── Inline markdown renderer ─────────────────────────────────
 function renderInline(text) {
   return text
-    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--accent-blue);font-weight:800">$1</strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--accent-blue);font-weight:700">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>');
 }
 
@@ -78,9 +128,9 @@ function MarkdownBody({ body }) {
   const flush = (key) => {
     if (listBuf.length) {
       elems.push(
-        <ul key={`ul${key}`} style={{ listStyleType: 'disc', paddingLeft: '1.2em', marginBottom: '0.6rem' }}>
+        <ul key={`ul${key}`} style={{ paddingLeft: '1.25em', marginBottom: '0.75rem', listStyle: 'disc' }}>
           {listBuf.map((li, i) => (
-            <li key={i} style={{ color: 'var(--text-main)', opacity: 0.8, lineHeight: 1.75, marginBottom: '0.2rem' }}
+            <li key={i} style={{ color: 'var(--text-main)', opacity: 0.82, lineHeight: 1.75, marginBottom: '0.2rem' }}
               dangerouslySetInnerHTML={{ __html: renderInline(li) }} />
           ))}
         </ul>
@@ -95,7 +145,7 @@ function MarkdownBody({ body }) {
     else {
       flush(i);
       elems.push(
-        <p key={i} style={{ color: 'var(--text-main)', opacity: 0.8, lineHeight: 1.8, marginBottom: '0.4rem' }}
+        <p key={i} style={{ color: 'var(--text-main)', opacity: 0.82, lineHeight: 1.8, marginBottom: '0.4rem' }}
           dangerouslySetInnerHTML={{ __html: renderInline(line) }} />
       );
     }
@@ -105,11 +155,11 @@ function MarkdownBody({ body }) {
 }
 
 // ─── RippleBtn ────────────────────────────────────────────────
-function RippleBtn({ onClick, disabled, className, children }) {
+function RippleBtn({ onClick, disabled, className, style, children }) {
   const { rippleRef, createRipple } = useRipple();
   return (
     <button ref={rippleRef} onClick={(e) => { createRipple(e); onClick?.(); }}
-      disabled={disabled} className={className}>
+      disabled={disabled} className={className} style={style}>
       {children}
     </button>
   );
@@ -120,17 +170,15 @@ function Lightbox({ images, startIndex, onClose }) {
   const [idx, setIdx] = useState(startIndex);
   const prev = useCallback(() => setIdx(i => (i - 1 + images.length) % images.length), [images.length]);
   const next = useCallback(() => setIdx(i => (i + 1) % images.length), [images.length]);
-
   useEffect(() => {
-    const handler = (e) => {
+    const h = (e) => {
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowLeft') prev();
       if (e.key === 'ArrowRight') next();
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
   }, [onClose, prev, next]);
-
   return (
     <div className="lightbox-backdrop" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -144,10 +192,10 @@ function Lightbox({ images, startIndex, onClose }) {
           {idx + 1} / {images.length}
         </div>
         {images.length > 1 && <>
-          <button onClick={prev} style={{ position: 'absolute', left: '-3.5rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(13,141,232,0.18)', border: '1px solid rgba(56,168,245,0.25)', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6', transition: 'all 0.2s' }}>
+          <button onClick={prev} style={{ position: 'absolute', left: '-3.5rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(13,141,232,0.18)', border: '1px solid rgba(56,168,245,0.25)', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6' }}>
             <ChevronLeft size={20} />
           </button>
-          <button onClick={next} style={{ position: 'absolute', right: '-3.5rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(13,141,232,0.18)', border: '1px solid rgba(56,168,245,0.25)', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6', transition: 'all 0.2s' }}>
+          <button onClick={next} style={{ position: 'absolute', right: '-3.5rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(13,141,232,0.18)', border: '1px solid rgba(56,168,245,0.25)', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6' }}>
             <ChevronRight size={20} />
           </button>
         </>}
@@ -156,7 +204,7 @@ function Lightbox({ images, startIndex, onClose }) {
   );
 }
 
-// ─── Map FlyTo helper ─────────────────────────────────────────
+// ─── Map flyTo helper ─────────────────────────────────────────
 function MapFlyTo({ center, zoom }) {
   const map = useMap();
   useEffect(() => {
@@ -165,58 +213,86 @@ function MapFlyTo({ center, zoom }) {
   return null;
 }
 
-// ─── Hotel Map ────────────────────────────────────────────────
+// ─── Hotel Map with live geocoding ───────────────────────────
 function HotelMap({ hotels, destination }) {
-  const [center, setCenter] = useState([20, 78]); // default India center
+  const [destCenter, setDestCenter] = useState([20, 78]);
   const [zoom, setZoom] = useState(5);
-  const [hotelCoords, setHotelCoords] = useState([]);
   const [flyTarget, setFlyTarget] = useState(null);
+  const [coords, setCoords] = useState([]); // [{hotel, lat, lng}]
 
-  // Geocode destination on mount
+  // Geocode destination
   useEffect(() => {
     if (!destination) return;
     fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=1`)
       .then(r => r.json())
       .then(data => {
         if (data[0]) {
-          const lat = parseFloat(data[0].lat);
-          const lon = parseFloat(data[0].lon);
-          setCenter([lat, lon]);
+          const lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
+          setDestCenter([lat, lng]);
+          setFlyTarget([lat, lng]);
           setZoom(13);
-          setFlyTarget([lat, lon]);
         }
       }).catch(() => {});
   }, [destination]);
 
-  // Layout hack - fix leaflet tile not loading properly in hidden divs
+  // Geocode hotels (with rate-limiting delay)
   useEffect(() => {
-    setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
+    if (!hotels.length || !destination) return;
+    setCoords([]);
+    let cancelled = false;
+    (async () => {
+      const results = [];
+      for (const h of hotels) {
+        if (cancelled) break;
+        // If hotel already has coords stored, use them directly
+        if (h.lat && h.lng) {
+          results.push({ hotel: h, lat: h.lat, lng: h.lng });
+        } else {
+          const loc = await geocodeHotel(h.name, h.location || '', destination);
+          if (loc) results.push({ hotel: h, lat: loc.lat, lng: loc.lng });
+          // Nominatim rate limit: 1 req/sec
+          await new Promise(r => setTimeout(r, 1100));
+        }
+        if (!cancelled) setCoords([...results]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [hotels, destination]);
+
+  // Trigger resize on mount
+  useEffect(() => {
+    const t = setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
+    return () => clearTimeout(t);
   }, []);
 
-  const markers = hotelCoords.length > 0 ? hotelCoords : [];
-
   return (
-    <MapContainer
-      center={center}
-      zoom={zoom}
+    <MapContainer center={destCenter} zoom={zoom}
       style={{ width: '100%', height: '100%', borderRadius: '1rem' }}
-      zoomControl={true}
-      scrollWheelZoom={true}
-    >
+      zoomControl={true} scrollWheelZoom={true}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       {flyTarget && <MapFlyTo center={flyTarget} zoom={13} />}
-      {hotels.filter(h => h.lat && h.lng).map((h, i) => (
-        <Marker key={i} position={[h.lat, h.lng]} icon={hotelIcon}>
+
+      {/* Destination marker */}
+      <Marker position={destCenter} icon={destIcon}>
+        <Popup>
+          <div style={{ fontFamily: 'Inter, sans-serif', minWidth: 130 }}>
+            <strong style={{ color: '#10b981', fontSize: '0.9rem' }}>{destination}</strong>
+          </div>
+        </Popup>
+      </Marker>
+
+      {/* Hotel markers (geocoded) */}
+      {coords.map(({ hotel, lat, lng }, i) => (
+        <Marker key={i} position={[lat, lng]} icon={hotelIcon}>
           <Popup>
-            <div style={{ fontFamily: 'Inter, sans-serif', minWidth: 160 }}>
-              <strong style={{ color: '#0060c7' }}>{h.name}</strong>
-              {h.price_per_night && <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#555' }}>
-                ₹{h.price_per_night.toLocaleString()}/night
-              </p>}
-              {h.rating && <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#888' }}>⭐ {h.rating}</p>}
+            <div style={{ fontFamily: 'Inter, sans-serif', minWidth: 170, padding: '2px 0' }}>
+              <strong style={{ color: '#0060c7', fontSize: '0.9rem', display: 'block', marginBottom: 4 }}>{hotel.name}</strong>
+              {hotel.location && <p style={{ margin: '0 0 4px', fontSize: '0.75rem', color: '#666' }}>📍 {hotel.location}</p>}
+              {hotel.price_per_night && <p style={{ margin: '0 0 2px', fontSize: '0.8rem', color: '#0d8de8', fontWeight: 700 }}>₹{hotel.price_per_night.toLocaleString()}<span style={{ color: '#888', fontWeight: 400 }}>/night</span></p>}
+              {hotel.rating && <p style={{ margin: 0, fontSize: '0.78rem', color: '#888' }}>⭐ {hotel.rating}</p>}
             </div>
           </Popup>
         </Marker>
@@ -237,8 +313,7 @@ function ItineraryMap({ destination }) {
       .then(r => r.json())
       .then(data => {
         if (data[0]) {
-          const lat = parseFloat(data[0].lat);
-          const lon = parseFloat(data[0].lon);
+          const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
           setCenter([lat, lon]);
           setZoom(12);
           setFlyTarget([lat, lon]);
@@ -247,21 +322,26 @@ function ItineraryMap({ destination }) {
   }, [destination]);
 
   useEffect(() => {
-    setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
+    const t = setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
+    return () => clearTimeout(t);
   }, []);
 
   return (
-    <MapContainer
-      center={center}
-      zoom={zoom}
+    <MapContainer center={center} zoom={zoom}
       style={{ width: '100%', height: '100%', borderRadius: '1rem' }}
-      scrollWheelZoom={true}
-    >
+      scrollWheelZoom={true}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       {flyTarget && <MapFlyTo center={flyTarget} zoom={12} />}
+      <Marker position={center} icon={destIcon}>
+        <Popup>
+          <div style={{ fontFamily: 'Inter, sans-serif' }}>
+            <strong style={{ color: '#10b981' }}>{destination}</strong>
+          </div>
+        </Popup>
+      </Marker>
     </MapContainer>
   );
 }
@@ -281,36 +361,36 @@ function PlaceImagesPanel({ destination }) {
   }, [destination]);
 
   if (loading) return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', padding: '4px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
       {[...Array(6)].map((_, i) => (
-        <div key={i} className="shimmer-bg" style={{ height: '90px', borderRadius: '0.65rem' }} />
+        <div key={i} className="shimmer-bg" style={{ height: '80px', borderRadius: '0.5rem' }} />
       ))}
     </div>
   );
 
   if (images.length === 0) return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '160px', color: 'rgba(56,168,245,0.35)', gap: '8px' }}>
-      <ImageIcon size={28} />
-      <span style={{ fontSize: '0.75rem', letterSpacing: '0.06em' }}>No images found</span>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '140px', color: 'rgba(56,168,245,0.35)', gap: '8px' }}>
+      <ImageIcon size={24} />
+      <span style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>No images found</span>
     </div>
   );
 
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', padding: '4px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
         {images.map((url, i) => (
           <div key={i}
             onClick={() => setLightboxIdx(i)}
             style={{
               background: `url(${url}) center/cover no-repeat`,
-              height: '90px',
-              borderRadius: '0.65rem',
+              height: '80px',
+              borderRadius: '0.5rem',
               cursor: 'pointer',
-              transition: 'transform 0.25s ease, box-shadow 0.25s ease',
+              transition: 'transform 0.22s ease, opacity 0.22s ease',
               gridColumn: i === 0 ? 'span 2' : undefined,
             }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(13,141,232,0.3)'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.opacity = '0.9'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.opacity = '1'; }}
           />
         ))}
       </div>
@@ -321,29 +401,18 @@ function PlaceImagesPanel({ destination }) {
   );
 }
 
-// ─── Timeline Day Card ────────────────────────────────────────
+// ─── Timeline Day Card (no heavy blur for perf) ───────────────
 function TimelineDayCard({ section, idx }) {
-  const cardRef = useRef(null);
-  const [active, setActive] = useState(false);
-
-  useEffect(() => {
-    const el = cardRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => setActive(entry.isIntersecting),
-      { threshold: 0.3, rootMargin: '-80px 0px -80px 0px' }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
   return (
-    <div ref={cardRef} className="day-card animate-fade-in" style={{ position: 'relative', transitionDelay: `${idx * 60}ms` }}>
-      <div className={`timeline-dot ${active ? 'active' : ''}`} />
-      <div className="p-6">
-        <div className="inline-flex items-center gap-2 mb-3">
-          <span className="text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full"
-            style={{ background: 'rgba(13,141,232,0.15)', border: '1px solid rgba(56,168,245,0.25)', color: '#7ec8f6' }}>
+    <div className="day-card animate-fade-in" style={{ position: 'relative', transitionDelay: `${idx * 40}ms` }}>
+      <div className="timeline-dot" />
+      <div style={{ padding: '1.25rem 1.5rem' }}>
+        <div style={{ marginBottom: '0.75rem' }}>
+          <span style={{
+            fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+            padding: '4px 12px', borderRadius: '999px',
+            background: 'rgba(13,141,232,0.15)', border: '1px solid rgba(56,168,245,0.25)', color: '#7ec8f6'
+          }}>
             {section.title}
           </span>
         </div>
@@ -353,14 +422,137 @@ function TimelineDayCard({ section, idx }) {
   );
 }
 
+// ─── Hotel Card ───────────────────────────────────────────────
+const CATEGORY_BADGES = {
+  'Budget Pick':    { bg: 'rgba(16,185,129,0.15)', border: 'rgba(52,211,153,0.35)', color: '#10b981', emoji: '💰' },
+  'Best Overall':   { bg: 'rgba(99,102,241,0.15)', border: 'rgba(129,140,248,0.35)', color: '#818cf8', emoji: '🏆' },
+  'Best Location':  { bg: 'rgba(249,115,22,0.15)', border: 'rgba(251,146,60,0.35)', color: '#f97316', emoji: '📍' },
+  'Highest Rated':  { bg: 'rgba(234,179,8,0.15)',  border: 'rgba(250,204,21,0.35)',  color: '#eab308', emoji: '⭐' },
+  'Best Value':     { bg: 'rgba(14,165,233,0.15)',  border: 'rgba(56,189,248,0.35)',  color: '#0ea5e9', emoji: '✨' },
+};
+
+function HotelCard({ hotel, index, isGridMode }) {
+  const badge = CATEGORY_BADGES[hotel.category] || null;
+
+  // In grid mode show a compact tall card; in list mode show horizontal
+  return (
+    <div
+      className="hotel-card-pro"
+      style={{
+        borderRadius: '1rem',
+        border: '1px solid var(--glass-border)',
+        background: 'var(--glass-card)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        transition: 'transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease',
+        animation: 'fadeIn 0.45s ease both',
+        animationDelay: `${index * 70}ms`,
+        cursor: 'default',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.transform = 'translateY(-3px)';
+        e.currentTarget.style.boxShadow = '0 16px 48px rgba(13,141,232,0.2)';
+        e.currentTarget.style.borderColor = 'rgba(56,168,245,0.38)';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'none';
+        e.currentTarget.style.borderColor = 'var(--glass-border)';
+      }}
+    >
+      {/* Image */}
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        {hotel.image_url ? (
+          <img src={hotel.image_url} alt={hotel.name}
+            style={{ width: '100%', height: isGridMode ? '140px' : '130px', objectFit: 'cover', display: 'block' }}
+            onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+          />
+        ) : null}
+        <div style={{
+          width: '100%', height: isGridMode ? '140px' : '130px',
+          display: hotel.image_url ? 'none' : 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          background: 'linear-gradient(135deg,rgba(13,141,232,0.15),rgba(0,96,199,0.1))',
+        }}>
+          <Hotel style={{ width: 36, height: 36, color: 'rgba(13,141,232,0.45)' }} />
+        </div>
+        {/* Category badge overlay */}
+        {badge && (
+          <div style={{
+            position: 'absolute', top: '0.6rem', left: '0.6rem',
+            padding: '3px 10px', borderRadius: '999px',
+            background: badge.bg, border: `1px solid ${badge.border}`,
+            color: badge.color, fontSize: '0.68rem', fontWeight: 700,
+            letterSpacing: '0.04em', backdropFilter: 'blur(8px)',
+          }}>
+            {badge.emoji} {hotel.category}
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div style={{ padding: '0.9rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', flexGrow: 1 }}>
+        <h3 style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-main)', margin: 0, lineHeight: 1.3 }}>
+          {hotel.name}
+        </h3>
+        {hotel.location && (
+          <p style={{ margin: 0, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-sub)', opacity: 0.8 }}>
+            <MapPin size={11} />{hotel.location}
+          </p>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.25rem' }}>
+          <div>
+            <span style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--color-ocean-300)' }}>
+              ₹{hotel.price_per_night?.toLocaleString()}
+            </span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-sub)', opacity: 0.6, marginLeft: 3 }}>/night</span>
+          </div>
+          {hotel.rating && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '4px',
+              padding: '3px 10px', borderRadius: '8px',
+              background: 'rgba(250,204,21,0.12)', border: '1px solid rgba(250,204,21,0.3)',
+            }}>
+              <Star size={12} style={{ color: '#eab308', fill: '#eab308' }} />
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ca8a04' }}>{hotel.rating}</span>
+            </div>
+          )}
+        </div>
+
+        {hotel.booking_url && (
+          <a href={hotel.booking_url} target="_blank" rel="noopener noreferrer"
+            style={{
+              marginTop: 'auto',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              padding: '0.5rem',
+              borderRadius: '0.6rem',
+              background: 'rgba(13,141,232,0.12)',
+              border: '1px solid rgba(56,168,245,0.25)',
+              color: '#56a8f5',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              textDecoration: 'none',
+              transition: 'all 0.18s ease',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(13,141,232,0.25)'; e.currentTarget.style.color = '#7ec8f6'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(13,141,232,0.12)'; e.currentTarget.style.color = '#56a8f5'; }}
+          >
+            View on Booking.com <ExternalLink size={11} />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Resizable Split Panel ────────────────────────────────────
 function SplitPanel({ left, right, mapCollapsed, onToggleCollapse }) {
   const containerRef = useRef(null);
-  const [leftWidth, setLeftWidth] = useState(55); // percent
+  const [leftWidth, setLeftWidth] = useState(56);
   const isDragging = useRef(false);
-
-  const MIN_LEFT = 30;
-  const MAX_LEFT = 80;
+  const MIN_LEFT = 32, MAX_LEFT = 78;
 
   const onMouseDown = useCallback((e) => {
     e.preventDefault();
@@ -398,68 +590,42 @@ function SplitPanel({ left, right, mapCollapsed, onToggleCollapse }) {
         width: mapCollapsed ? '100%' : `${leftWidth}%`,
         overflow: 'auto',
         paddingRight: mapCollapsed ? 0 : '0.75rem',
-        transition: mapCollapsed ? 'width 0.35s cubic-bezier(0.16,1,0.3,1)' : 'none',
+        transition: 'width 0.35s cubic-bezier(0.16,1,0.3,1)',
         minWidth: 0,
       }}>
         {left}
       </div>
 
-      {/* Divider + collapse toggle */}
+      {/* Divider */}
       {!mapCollapsed && (
         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none', flexShrink: 0 }}>
-          {/* Drag handle */}
           <div
             onMouseDown={onMouseDown}
             style={{
-              width: '6px',
-              height: '100%',
-              cursor: 'col-resize',
-              background: 'rgba(56,168,245,0.10)',
-              borderRadius: '4px',
-              transition: 'background 0.2s',
-              position: 'relative',
+              width: '5px', height: '100%', cursor: 'col-resize',
+              background: 'rgba(56,168,245,0.08)', borderRadius: '4px', transition: 'background 0.2s',
             }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(56,168,245,0.35)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(56,168,245,0.10)'}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(56,168,245,0.3)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(56,168,245,0.08)'}
           >
-            {/* Grip dots */}
-            <div style={{
-              position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-              display: 'flex', flexDirection: 'column', gap: '4px'
-            }}>
-              {[0, 1, 2].map(i => (
-                <div key={i} style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'rgba(56,168,245,0.55)' }} />
-              ))}
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              {[0, 1, 2].map(i => <div key={i} style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'rgba(56,168,245,0.45)' }} />)}
             </div>
           </div>
           {/* Collapse button */}
-          <button
-            onClick={onToggleCollapse}
-            title="Collapse map"
-            style={{
-              position: 'absolute',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
-              left: '50%',
-              marginTop: '50px',
-              width: 28,
-              height: 28,
-              borderRadius: '50%',
-              background: 'var(--glass-card)',
-              border: '1px solid rgba(56,168,245,0.3)',
-              color: '#7ec8f6',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 10,
-              transition: 'all 0.2s',
-              boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(13,141,232,0.25)'}
+          <button onClick={onToggleCollapse} title="Collapse map" style={{
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, calc(-50% + 44px))',
+            width: 26, height: 26, borderRadius: '50%',
+            background: 'var(--glass-card)', border: '1px solid rgba(56,168,245,0.25)',
+            color: '#7ec8f6', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 10, transition: 'all 0.18s', boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(13,141,232,0.2)'}
             onMouseLeave={e => e.currentTarget.style.background = 'var(--glass-card)'}
           >
-            <PanelRightClose size={13} />
+            <PanelRightClose size={12} />
           </button>
         </div>
       )}
@@ -467,50 +633,49 @@ function SplitPanel({ left, right, mapCollapsed, onToggleCollapse }) {
       {/* Right panel */}
       {!mapCollapsed && (
         <div style={{
-          width: `${100 - leftWidth}%`,
-          minWidth: 0,
-          paddingLeft: '0.75rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.75rem',
-          position: 'sticky',
-          top: '80px',
-          height: 'calc(100vh - 100px)',
-          overflow: 'auto',
+          width: `${100 - leftWidth}%`, minWidth: 0, paddingLeft: '0.75rem',
+          display: 'flex', flexDirection: 'column', gap: '0.75rem',
+          position: 'sticky', top: '80px',
+          height: 'calc(100vh - 100px)', overflow: 'auto',
         }}>
           {right}
         </div>
       )}
 
-      {/* Re-expand button (shown when collapsed) */}
+      {/* Expand button (when collapsed) */}
       {mapCollapsed && (
-        <button
-          onClick={onToggleCollapse}
-          title="Show map"
-          style={{
-            position: 'fixed',
-            right: '1.5rem',
-            bottom: '2rem',
-            width: 48,
-            height: 48,
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg,#0060c7,#0d8de8)',
-            border: '1px solid rgba(56,168,245,0.4)',
-            color: '#fff',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 50,
-            boxShadow: '0 4px 20px rgba(13,141,232,0.5)',
-            transition: 'all 0.25s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(13,141,232,0.7)'; }}
+        <button onClick={onToggleCollapse} title="Show map" style={{
+          position: 'fixed', right: '1.5rem', bottom: '2rem',
+          width: 44, height: 44, borderRadius: '50%',
+          background: 'linear-gradient(135deg,#0060c7,#0d8de8)',
+          border: 'none', color: '#fff', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 50, boxShadow: '0 4px 20px rgba(13,141,232,0.5)',
+          transition: 'all 0.22s',
+        }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(13,141,232,0.65)'; }}
           onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(13,141,232,0.5)'; }}
         >
-          <PanelRightOpen size={20} />
+          <PanelRightOpen size={18} />
         </button>
       )}
+    </div>
+  );
+}
+
+// ─── Stat Chip ────────────────────────────────────────────────
+function StatChip({ icon: Icon, label, value }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '0.6rem',
+      padding: '0.55rem 1rem', borderRadius: '999px',
+      background: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.12)',
+    }}>
+      <Icon size={13} style={{ color: 'rgba(200,230,255,0.6)', flexShrink: 0 }} />
+      <div>
+        <p style={{ margin: 0, fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(200,230,255,0.45)' }}>{label}</p>
+        <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 600, color: '#fff' }}>{value}</p>
+      </div>
     </div>
   );
 }
@@ -526,7 +691,7 @@ export default function TripDetailPage() {
   const [searchingHotels, setSearchingHotels] = useState(false);
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
-  const [activeTab, setActiveTab] = useState('hotels'); // 'hotels' | 'itinerary'
+  const [activeTab, setActiveTab] = useState('hotels');
   const [mapCollapsed, setMapCollapsed] = useState(false);
 
   useEffect(() => { fetchData(); }, [id]);
@@ -535,6 +700,10 @@ export default function TripDetailPage() {
     try {
       const tripRes = await tripsAPI.getOne(id);
       setTrip(tripRes.data);
+      try {
+        const hotelRes = await hotelsAPI.getForTrip?.(id);
+        if (hotelRes?.data?.length) setHotels(hotelRes.data);
+      } catch { /* no cached hotels */ }
       try {
         const itinRes = await itinerariesAPI.get(id);
         setItinerary(itinRes.data);
@@ -557,7 +726,6 @@ export default function TripDetailPage() {
       });
       setHotels(res.data);
     } catch (e) {
-      console.error(e);
       const msg = (e?.code === 'ECONNABORTED' || e?.message?.includes('timeout'))
         ? 'Hotel search is taking longer than expected. Please try again!'
         : e?.response?.data?.detail || 'Hotel search failed. Please try again.';
@@ -574,7 +742,7 @@ export default function TripDetailPage() {
       const res = await itinerariesAPI.generate(id);
       setItinerary(res.data);
       setActiveTab('itinerary');
-    } catch (e) { console.error(e); alert('Failed to generate itinerary.'); }
+    } catch (e) { alert('Failed to generate itinerary.'); }
     finally { setGeneratingItinerary(false); }
   };
 
@@ -584,7 +752,7 @@ export default function TripDetailPage() {
       await itinerariesAPI.delete(id);
       const res = await itinerariesAPI.generate(id);
       setItinerary(res.data);
-    } catch (e) { console.error(e); alert('Failed to regenerate.'); }
+    } catch (e) { alert('Failed to regenerate.'); }
     finally { setRegenerating(false); }
   };
 
@@ -597,121 +765,110 @@ export default function TripDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[70vh]">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin mx-auto mb-3" style={{ color: 'var(--accent-blue)' }} />
-          <p className="text-sm uppercase tracking-widest font-bold" style={{ color: 'var(--text-sub)' }}>Loading your trip…</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '70vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <Loader2 style={{ width: 40, height: 40, animation: 'spin 1s linear infinite', color: 'var(--accent-blue)', margin: '0 auto 1rem' }} />
+          <p style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-sub)', fontWeight: 600 }}>Loading your trip…</p>
         </div>
       </div>
     );
   }
   if (!trip) {
     return (
-      <div className="flex items-center justify-center min-h-[70vh]">
-        <div className="card p-12 text-center"><p className="text-ocean-300">Trip not found.</p></div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '70vh' }}>
+        <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
+          <p style={{ color: 'var(--text-sub)' }}>Trip not found.</p>
+        </div>
       </div>
     );
   }
 
   const nights = Math.round((new Date(trip.end_date) - new Date(trip.start_date)) / 86400000);
 
-  // ── Hotels left panel ──
+  // ── Hotels panel ─────────────────────────────────────────────
   const hotelsLeft = (
     <section>
-      <div className="flex justify-between items-center mb-5">
-        <h2 className="text-lg font-bold text-main flex items-center gap-2">
-          <span>🏨</span> Where to Stay
-        </h2>
-        <RippleBtn onClick={searchHotels} disabled={searchingHotels} className="btn-secondary text-sm py-1.5 px-3">
-          {searchingHotels ? <><Loader2 className="animate-spin w-4 h-4 mr-1.5 inline" />Searching…</> : 'Search Hotels'}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+        <div>
+          <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 2px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Hotel size={18} style={{ color: 'var(--accent-blue)' }} /> Where to Stay
+          </h2>
+          {hotels.length > 0 && (
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-sub)', opacity: 0.7 }}>{hotels.length} curated picks for your trip</p>
+          )}
+        </div>
+        <RippleBtn onClick={searchHotels} disabled={searchingHotels} className="btn-secondary" style={{ fontSize: '0.82rem', padding: '0.45rem 0.9rem' }}>
+          {searchingHotels
+            ? <><Loader2 style={{ width: 14, height: 14, marginRight: 6, animation: 'spin 1s linear infinite', display: 'inline' }} />Searching…</>
+            : <><RefreshCw size={13} style={{ marginRight: 6, display: 'inline' }} />Search Hotels</>
+          }
         </RippleBtn>
       </div>
 
       {hotels.length > 0 ? (
-        <div className="space-y-4">
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: mapCollapsed
+            ? 'repeat(auto-fill, minmax(220px, 1fr))'
+            : '1fr',
+          gap: mapCollapsed ? '1rem' : '0.85rem',
+        }}>
           {hotels.map((hotel, hi) => (
-            <div key={hotel.id} className="card card-hover overflow-hidden animate-fade-in"
-              style={{ animationDelay: `${hi * 80}ms`, animationFillMode: 'both' }}>
-              {hotel.image_url ? (
-                <img src={hotel.image_url} alt={hotel.name} className="w-full h-36 object-cover" />
-              ) : (
-                <div className="w-full h-36 flex items-center justify-center"
-                  style={{ background: 'linear-gradient(135deg, rgba(13,141,232,0.18), rgba(0,96,199,0.12))' }}>
-                  <Hotel className="w-10 h-10" style={{ color: '#004caa' }} />
-                </div>
-              )}
-              <div className="p-4">
-                <h3 className="font-bold text-ocean-100 mb-1">{hotel.name}</h3>
-                <p className="text-xs flex items-center gap-1 mb-3" style={{ color: 'rgba(56,168,245,0.5)' }}>
-                  <MapPin className="w-3 h-3" />{hotel.location}
-                </p>
-                <div className="flex justify-between items-center mb-3">
-                  <div className="text-xl font-black text-ocean-300">
-                    ₹{hotel.price_per_night.toLocaleString()}
-                    <span className="text-xs font-normal" style={{ color: 'rgba(56,168,245,0.4)' }}>/night</span>
-                  </div>
-                  {hotel.rating && (
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg"
-                      style={{ background: 'rgba(250,204,21,0.12)', border: '1px solid rgba(250,204,21,0.3)' }}>
-                      <Star className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400 fill-current" />
-                      <span className="text-yellow-700 dark:text-yellow-300 text-sm font-bold">{hotel.rating}</span>
-                    </div>
-                  )}
-                </div>
-                {hotel.booking_url && (
-                  <a href={hotel.booking_url} target="_blank" rel="noopener noreferrer"
-                    className="btn-secondary w-full text-center text-xs py-2">
-                    View Details →
-                  </a>
-                )}
-              </div>
-            </div>
+            <HotelCard key={hotel.id || hi} hotel={hotel} index={hi} isGridMode={mapCollapsed} />
           ))}
         </div>
       ) : (
-        <div className="card p-12 text-center" style={{ border: '1px dashed rgba(56,168,245,0.18)' }}>
-          <Hotel className="w-10 h-10 mx-auto mb-3" style={{ color: 'rgba(13,141,232,0.5)' }} />
-          <p className="text-sm" style={{ color: 'rgba(56,168,245,0.4)' }}>Click "Search Hotels" to find accommodations for your trip</p>
+        <div style={{
+          borderRadius: '1rem', border: '1px dashed rgba(56,168,245,0.18)',
+          background: 'var(--glass-card)', padding: '3.5rem 2rem', textAlign: 'center',
+        }}>
+          <Hotel style={{ width: 40, height: 40, margin: '0 auto 0.75rem', color: 'rgba(13,141,232,0.4)' }} />
+          <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.35rem' }}>No hotels yet</p>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-sub)', opacity: 0.7, margin: 0 }}>
+            Click "Search Hotels" to find the best accommodations
+          </p>
         </div>
       )}
     </section>
   );
 
-  // ── Itinerary left panel ──
+  // ── Itinerary panel ──────────────────────────────────────────
   const itineraryLeft = (
     <section>
-      <div className="flex justify-between items-center mb-5">
-        <h2 className="text-lg font-bold text-main flex items-center gap-2">
-          <span>🗓️</span> Your Itinerary
-        </h2>
-        <div className="flex gap-2">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+        <div>
+          <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 2px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Sparkles size={18} style={{ color: 'var(--accent-blue)' }} /> Your Itinerary
+          </h2>
+          {itinerary && <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-sub)', opacity: 0.7 }}>AI-crafted day-by-day plan</p>}
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
           {itinerary && (
-            <RippleBtn onClick={regenerateItinerary} disabled={regenerating} className="btn-secondary text-xs py-2 px-3">
-              {regenerating ? <><Loader2 className="animate-spin w-3 h-3 mr-1 inline" />Regenerating…</> : <><RefreshCw className="w-3 h-3 mr-1 inline" />Regenerate</>}
+            <RippleBtn onClick={regenerateItinerary} disabled={regenerating} className="btn-secondary" style={{ fontSize: '0.78rem', padding: '0.42rem 0.85rem' }}>
+              {regenerating ? <><Loader2 size={13} style={{ marginRight: 5, animation: 'spin 1s linear infinite', display: 'inline' }} />Regenerating…</> : <><RefreshCw size={13} style={{ marginRight: 5, display: 'inline' }} />Regenerate</>}
             </RippleBtn>
           )}
           {!itinerary && (
-            <RippleBtn onClick={generateItinerary} disabled={generatingItinerary} className="btn-primary text-sm py-2 px-4">
-              {generatingItinerary ? <><Loader2 className="animate-spin w-4 h-4 mr-1.5 inline" />Generating…</> : 'Generate Itinerary'}
+            <RippleBtn onClick={generateItinerary} disabled={generatingItinerary} className="btn-primary" style={{ fontSize: '0.82rem', padding: '0.5rem 1rem' }}>
+              {generatingItinerary ? <><Loader2 size={14} style={{ marginRight: 6, animation: 'spin 1s linear infinite', display: 'inline' }} />Generating…</> : 'Generate Itinerary'}
             </RippleBtn>
           )}
         </div>
       </div>
 
       {generatingItinerary && !itinerary && (
-        <div className="card p-14 text-center" style={{ border: '1px solid rgba(56,168,245,0.15)' }}>
-          <Waves className="w-10 h-10 animate-float mx-auto mb-4" style={{ color: '#0d8de8' }} />
-          <p className="text-ocean-100 font-bold text-lg mb-1">Crafting your itinerary…</p>
-          <p className="text-sm" style={{ color: 'rgba(56,168,245,0.45)' }}>Usually takes 15–30 seconds.</p>
+        <div style={{ borderRadius: '1rem', border: '1px solid rgba(56,168,245,0.15)', background: 'var(--glass-card)', padding: '3.5rem 2rem', textAlign: 'center' }}>
+          <Waves style={{ width: 36, height: 36, animation: 'float 2s ease-in-out infinite', color: '#0d8de8', margin: '0 auto 1rem' }} />
+          <p style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 0.4rem' }}>Crafting your itinerary…</p>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-sub)', opacity: 0.7, margin: 0 }}>Usually takes 15–30 seconds.</p>
         </div>
       )}
 
       {itinerary && sections.length > 0 && (
-        <div className="space-y-6">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {highlightSection && (
-            <div className="card p-6 animate-fade-in">
-              <h2 className="text-lg font-bold mb-4 pb-3 flex items-center gap-2"
-                style={{ color: '#7ec8f6', borderBottom: '1px solid rgba(56,168,245,0.15)' }}>
+            <div className="card" style={{ padding: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#7ec8f6', borderBottom: '1px solid rgba(56,168,245,0.12)' }}>
                 <span>{highlightSection.emoji}</span>
                 {highlightSection.title.replace(/^[^\w]+/, '')}
               </h2>
@@ -720,12 +877,11 @@ export default function TripDetailPage() {
           )}
 
           {daySections.length > 0 && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-bold mb-4 pb-3 flex items-center gap-2"
-                style={{ color: '#7ec8f6', borderBottom: '1px solid rgba(56,168,245,0.15)' }}>
-                <span>🗓️</span> Day-by-Day Itinerary
+            <div>
+              <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#7ec8f6', borderBottom: '1px solid rgba(56,168,245,0.12)' }}>
+                <span>🗓️</span> Day-by-Day Plan
               </h2>
-              <div className="timeline-container space-y-4 itinerary-prose">
+              <div className="timeline-container" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                 {daySections.map((section, idx) => (
                   <TimelineDayCard key={`day-${idx}`} section={section} idx={idx} />
                 ))}
@@ -734,9 +890,8 @@ export default function TripDetailPage() {
           )}
 
           {budgetSection && (
-            <div className="card p-6 animate-fade-in" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
-              <h2 className="text-lg font-bold mb-4 pb-3 flex items-center gap-2"
-                style={{ color: '#7ec8f6', borderBottom: '1px solid rgba(56,168,245,0.15)' }}>
+            <div className="card" style={{ padding: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#7ec8f6', borderBottom: '1px solid rgba(56,168,245,0.12)' }}>
                 <span>{budgetSection.emoji}</span>{budgetSection.title.replace(/^[^\w]+/, '')}
               </h2>
               <MarkdownBody body={budgetSection.body.trim()} />
@@ -744,9 +899,8 @@ export default function TripDetailPage() {
           )}
 
           {knowSection && (
-            <div className="card p-6 animate-fade-in" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
-              <h2 className="text-lg font-bold mb-4 pb-3 flex items-center gap-2"
-                style={{ color: '#7ec8f6', borderBottom: '1px solid rgba(56,168,245,0.15)' }}>
+            <div className="card" style={{ padding: '1.5rem' }}>
+              <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#7ec8f6', borderBottom: '1px solid rgba(56,168,245,0.12)' }}>
                 <span>{knowSection.emoji}</span>{knowSection.title.replace(/^[^\w]+/, '')}
               </h2>
               <MarkdownBody body={knowSection.body.trim()} />
@@ -756,34 +910,35 @@ export default function TripDetailPage() {
       )}
 
       {itinerary && sections.length === 0 && (
-        <div className="card p-8">
-          <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed" style={{ color: 'rgba(189,227,255,0.75)' }}>
+        <div className="card" style={{ padding: '2rem' }}>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: '0.85rem', lineHeight: 1.8, color: 'rgba(189,227,255,0.75)' }}>
             {itinerary.content}
           </pre>
         </div>
       )}
 
       {!itinerary && !generatingItinerary && (
-        <div className="card p-14 text-center" style={{ border: '1px dashed rgba(56,168,245,0.18)' }}>
-          <MapPin className="w-10 h-10 mx-auto mb-3" style={{ color: 'rgba(13,141,232,0.5)' }} />
-          <p className="text-ocean-100 font-bold mb-1">No itinerary yet</p>
-          <p className="text-sm" style={{ color: 'rgba(56,168,245,0.45)' }}>Click "Generate Itinerary" and we'll map out your whole trip.</p>
+        <div style={{ borderRadius: '1rem', border: '1px dashed rgba(56,168,245,0.18)', background: 'var(--glass-card)', padding: '3.5rem 2rem', textAlign: 'center' }}>
+          <Navigation style={{ width: 36, height: 36, margin: '0 auto 0.75rem', color: 'rgba(13,141,232,0.45)' }} />
+          <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-main)', margin: '0 0 0.35rem' }}>No itinerary yet</p>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-sub)', opacity: 0.7, margin: 0 }}>
+            Click "Generate Itinerary" and we'll map out your whole trip
+          </p>
         </div>
       )}
     </section>
   );
 
-  // ── Right panel (map + optionally images) ──
+  // ── Right panel (map + images) ───────────────────────────────
   const mapPanel = (
     <>
-      {/* Map */}
       <div style={{
         flex: activeTab === 'itinerary' ? '0 0 55%' : '1 1 100%',
-        minHeight: '320px',
+        minHeight: '300px',
         borderRadius: '1rem',
         overflow: 'hidden',
         border: '1px solid var(--glass-border)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+        boxShadow: '0 6px 28px rgba(0,0,0,0.2)',
       }}>
         {activeTab === 'hotels'
           ? <HotelMap hotels={hotels} destination={destination} />
@@ -791,12 +946,11 @@ export default function TripDetailPage() {
         }
       </div>
 
-      {/* Place images (itinerary tab only) */}
       {activeTab === 'itinerary' && (
-        <div className="card p-4" style={{ flex: '1 1 auto' }}>
-          <p className="text-xs font-semibold tracking-widest uppercase mb-3"
-            style={{ color: 'var(--color-ocean-500)' }}>
-            📸 {destination} · Snapshots
+        <div className="card" style={{ padding: '1rem', flex: '1 1 auto' }}>
+          <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.75rem', color: 'var(--color-ocean-500)' }}>
+            <Camera size={12} style={{ display: 'inline', marginRight: 5 }} />
+            {destination} Snapshots
           </p>
           <PlaceImagesPanel destination={destination} />
         </div>
@@ -805,83 +959,78 @@ export default function TripDetailPage() {
   );
 
   return (
-    <div className="min-h-screen py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <div style={{ minHeight: '100vh', padding: '2.5rem 1rem', willChange: 'auto' }}>
+      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
 
-        {/* ── Trip Header ──────────────────────────────── */}
-        <div className="card mb-8 overflow-hidden animate-fade-in">
-          <div className="px-8 py-10 relative overflow-hidden"
-            style={{
-              background: isDarkMode
-                ? 'linear-gradient(135deg, rgba(0,36,114,0.95) 0%, rgba(0,96,199,0.9) 50%, rgba(13,141,232,0.8) 100%)'
-                : 'linear-gradient(135deg, rgba(13,141,232,0.85) 0%, rgba(20,184,166,0.7) 100%)'
-            }}>
-            <div className="absolute -top-8 -right-8 w-48 h-48 rounded-full" style={{ background: 'rgba(56,168,245,0.06)' }} />
-            <div className="absolute -bottom-10 -left-10 w-56 h-56 rounded-full" style={{ background: 'rgba(0,0,0,0.2)' }} />
-            <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-3">
-                <Waves className="w-4 h-4 animate-float" style={{ color: 'rgba(126,200,246,0.7)' }} />
-                <span className="text-xs font-medium tracking-widest uppercase" style={{ color: 'rgba(126,200,246,0.55)' }}>Trip to</span>
+        {/* ── Trip Header ── */}
+        <div style={{
+          marginBottom: '2rem',
+          borderRadius: '1.5rem',
+          overflow: 'hidden',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.3)',
+          border: '1px solid rgba(255,255,255,0.08)',
+        }}>
+          <div style={{
+            padding: '2.5rem 2.5rem',
+            position: 'relative', overflow: 'hidden',
+            background: isDarkMode
+              ? 'linear-gradient(135deg, #001c5e 0%, #003a9e 45%, #0d8de8 100%)'
+              : 'linear-gradient(135deg, #0369a1 0%, #0d8de8 60%, #22d3ee 100%)',
+          }}>
+            {/* Decorative blobs */}
+            <div style={{ position: 'absolute', top: '-4rem', right: '-4rem', width: '18rem', height: '18rem', borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', bottom: '-5rem', left: '-3rem', width: '22rem', height: '22rem', borderRadius: '50%', background: 'rgba(0,0,0,0.12)', pointerEvents: 'none' }} />
+
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                <Waves size={14} style={{ color: 'rgba(200,235,255,0.55)' }} />
+                <span style={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(200,235,255,0.5)' }}>Trip to</span>
               </div>
-              <h1 className="text-4xl sm:text-5xl font-black text-white mb-6 leading-tight">{trip.destination}</h1>
-              <div className="flex flex-wrap gap-6">
-                {[
-                  { icon: Calendar, v: `${format(new Date(trip.start_date), 'MMM d')} – ${format(new Date(trip.end_date), 'MMM d, yyyy')}`, l: 'Dates' },
-                  { icon: Calendar, v: `${nights} night${nights !== 1 ? 's' : ''}`, l: 'Duration' },
-                  { icon: Users, v: trip.travelers, l: 'Travelers' },
-                  { icon: IndianRupee, v: trip.budget, l: 'Budget' },
-                  trip.interests ? { icon: MapPin, v: trip.interests, l: 'Interests' } : null,
-                ].filter(Boolean).map(({ icon: Icon, v, l }) => (
-                  <div key={l} className="flex items-center gap-2">
-                    <Icon className="w-3.5 h-3.5" style={{ color: 'rgba(126,200,246,0.5)' }} />
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest" style={{ color: 'rgba(126,200,246,0.4)' }}>{l}</p>
-                      <p className="text-white font-semibold text-sm">{v}</p>
-                    </div>
-                  </div>
-                ))}
+              <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.2rem)', fontWeight: 900, color: '#fff', margin: '0 0 1.5rem', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
+                {trip.destination}
+              </h1>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
+                <StatChip icon={Calendar} label="Dates" value={`${format(new Date(trip.start_date), 'MMM d')} – ${format(new Date(trip.end_date), 'MMM d, yyyy')}`} />
+                <StatChip icon={Calendar} label="Duration" value={`${nights} night${nights !== 1 ? 's' : ''}`} />
+                <StatChip icon={Users} label="Travelers" value={trip.travelers} />
+                <StatChip icon={IndianRupee} label="Budget" value={trip.budget} />
+                {trip.interests && <StatChip icon={MapPin} label="Interests" value={trip.interests} />}
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Tab switcher ─────────────────────────────── */}
-        <div className="flex gap-2 mb-6 animate-fade-in" style={{ animationDelay: '80ms', animationFillMode: 'both' }}>
+        {/* ── Tab switcher ── */}
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
           {[
             { key: 'hotels', label: 'Hotels', emoji: '🏨' },
             { key: 'itinerary', label: 'Itinerary', emoji: '📅' },
           ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              style={{
-                padding: '10px 22px',
-                borderRadius: '12px',
-                fontWeight: 700,
-                fontSize: '0.875rem',
-                cursor: 'pointer',
-                transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)',
-                border: activeTab === tab.key ? '1px solid rgba(56,168,245,0.4)' : '1px solid var(--glass-border)',
-                background: activeTab === tab.key
-                  ? 'linear-gradient(135deg, rgba(0,96,199,0.7), rgba(13,141,232,0.5))'
-                  : 'var(--glass-card)',
-                color: activeTab === tab.key ? '#fff' : 'var(--text-sub)',
-                boxShadow: activeTab === tab.key ? '0 4px 20px rgba(13,141,232,0.35)' : 'none',
-                transform: activeTab === tab.key ? 'translateY(-2px)' : 'none',
-              }}
-            >
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
+              padding: '0.6rem 1.4rem',
+              borderRadius: '10px',
+              fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer',
+              transition: 'all 0.22s cubic-bezier(0.16,1,0.3,1)',
+              border: activeTab === tab.key ? '1px solid rgba(56,168,245,0.4)' : '1px solid var(--glass-border)',
+              background: activeTab === tab.key
+                ? 'linear-gradient(135deg, rgba(0,96,199,0.7), rgba(13,141,232,0.5))'
+                : 'var(--glass-card)',
+              color: activeTab === tab.key ? '#fff' : 'var(--text-sub)',
+              boxShadow: activeTab === tab.key ? '0 4px 18px rgba(13,141,232,0.3)' : 'none',
+              transform: activeTab === tab.key ? 'translateY(-1px)' : 'none',
+            }}>
               {tab.emoji} {tab.label}
             </button>
           ))}
         </div>
 
-        {/* ── Split panel content ──────────────────────── */}
+        {/* ── Split panel ── */}
         <div style={{ minHeight: '70vh' }}>
           <SplitPanel
             mapCollapsed={mapCollapsed}
             onToggleCollapse={() => setMapCollapsed(c => !c)}
             left={
-              <div style={{ animation: 'tabSlideIn 0.3s cubic-bezier(0.16,1,0.3,1) both' }} key={activeTab}>
+              <div key={activeTab} style={{ animation: 'tabSlideIn 0.28s cubic-bezier(0.16,1,0.3,1) both' }}>
                 {activeTab === 'hotels' ? hotelsLeft : itineraryLeft}
               </div>
             }
