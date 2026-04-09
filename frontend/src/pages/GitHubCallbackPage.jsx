@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
  */
 export default function GitHubCallbackPage() {
   const navigate = useNavigate();
-  const { setUserFromCallback, setAuthLoading } = useAuth();
+  const auth = useAuth();
   const processed = useRef(false); // guard against React strict-mode double-fire
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export default function GitHubCallbackPage() {
     if (error) {
       console.error('GitHub OAuth error:', error);
       alert(`Sign-in failed: ${decodeURIComponent(error)}`);
-      setAuthLoading(false);
+      auth?.setAuthLoading?.(false);
       navigate('/', { replace: true });
       return;
     }
@@ -35,12 +35,12 @@ export default function GitHubCallbackPage() {
     if (userEncoded) {
       try {
         const user = JSON.parse(decodeURIComponent(userEncoded));
-        setUserFromCallback(user);
+        auth?.setUserFromCallback?.(user);
         navigate('/', { replace: true });
       } catch (e) {
         console.error('Failed to parse user payload:', e);
         alert('Sign-in failed: invalid response from server.');
-        setAuthLoading(false);
+        auth?.setAuthLoading?.(false);
         navigate('/', { replace: true });
       }
       return;
@@ -48,7 +48,7 @@ export default function GitHubCallbackPage() {
 
     // No params at all — probably a direct visit
     navigate('/', { replace: true });
-  }, [navigate, setUserFromCallback, setAuthLoading]);
+  }, []); // intentionally empty: run once on mount only
 
   return (
     <div

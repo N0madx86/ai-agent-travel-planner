@@ -4,7 +4,7 @@ import {
   Calendar, Users, IndianRupee, MapPin, Loader2,
   Hotel, Star, RefreshCw, Waves, Camera, ChevronLeft,
   ChevronRight, X as XIcon, Image as ImageIcon,
-  PanelRightClose, PanelRightOpen, ExternalLink,
+  PanelRightClose, ExternalLink,
   Sparkles, Navigation,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -642,23 +642,6 @@ function SplitPanel({ left, right, mapCollapsed, onToggleCollapse }) {
         </div>
       )}
 
-      {/* Expand button (when collapsed) */}
-      {mapCollapsed && (
-        <button onClick={onToggleCollapse} title="Show map" style={{
-          position: 'fixed', right: '1.5rem', bottom: '2rem',
-          width: 44, height: 44, borderRadius: '50%',
-          background: 'linear-gradient(135deg,#0060c7,#0d8de8)',
-          border: 'none', color: '#fff', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 50, boxShadow: '0 4px 20px rgba(13,141,232,0.5)',
-          transition: 'all 0.22s',
-        }}
-          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(13,141,232,0.65)'; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(13,141,232,0.5)'; }}
-        >
-          <PanelRightOpen size={18} />
-        </button>
-      )}
     </div>
   );
 }
@@ -692,7 +675,7 @@ export default function TripDetailPage() {
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [activeTab, setActiveTab] = useState('hotels');
-  const [mapCollapsed, setMapCollapsed] = useState(false);
+  const [mapCollapsed, setMapCollapsed] = useState(true); // closed by default
 
   useEffect(() => { fetchData(); }, [id]);
 
@@ -809,9 +792,9 @@ export default function TripDetailPage() {
         <div style={{
           display: 'grid',
           gridTemplateColumns: mapCollapsed
-            ? 'repeat(auto-fill, minmax(220px, 1fr))'
+            ? 'repeat(auto-fill, minmax(260px, 1fr))'
             : '1fr',
-          gap: mapCollapsed ? '1rem' : '0.85rem',
+          gap: mapCollapsed ? '1.1rem' : '0.85rem',
         }}>
           {hotels.map((hotel, hi) => (
             <HotelCard key={hotel.id || hi} hotel={hotel} index={hi} isGridMode={mapCollapsed} />
@@ -854,6 +837,15 @@ export default function TripDetailPage() {
             </RippleBtn>
           )}
         </div>
+      </div>
+
+      {/* ── Destination Snapshot — always visible at top ── */}
+      <div className="card" style={{ padding: '1rem', marginBottom: '1.25rem' }}>
+        <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.75rem', color: 'var(--color-ocean-500)' }}>
+          <Camera size={12} style={{ display: 'inline', marginRight: 5 }} />
+          {destination} Snapshots
+        </p>
+        <PlaceImagesPanel destination={destination} />
       </div>
 
       {generatingItinerary && !itinerary && (
@@ -929,33 +921,21 @@ export default function TripDetailPage() {
     </section>
   );
 
-  // ── Right panel (map + images) ───────────────────────────────
+  // ── Right panel — map only ───────────────────────────────────
   const mapPanel = (
-    <>
-      <div style={{
-        flex: activeTab === 'itinerary' ? '0 0 55%' : '1 1 100%',
-        minHeight: '300px',
-        borderRadius: '1rem',
-        overflow: 'hidden',
-        border: '1px solid var(--glass-border)',
-        boxShadow: '0 6px 28px rgba(0,0,0,0.2)',
-      }}>
-        {activeTab === 'hotels'
-          ? <HotelMap hotels={hotels} destination={destination} />
-          : <ItineraryMap destination={destination} />
-        }
-      </div>
-
-      {activeTab === 'itinerary' && (
-        <div className="card" style={{ padding: '1rem', flex: '1 1 auto' }}>
-          <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.75rem', color: 'var(--color-ocean-500)' }}>
-            <Camera size={12} style={{ display: 'inline', marginRight: 5 }} />
-            {destination} Snapshots
-          </p>
-          <PlaceImagesPanel destination={destination} />
-        </div>
-      )}
-    </>
+    <div style={{
+      flex: '1 1 100%',
+      minHeight: '300px',
+      borderRadius: '1rem',
+      overflow: 'hidden',
+      border: '1px solid var(--glass-border)',
+      boxShadow: '0 6px 28px rgba(0,0,0,0.2)',
+    }}>
+      {activeTab === 'hotels'
+        ? <HotelMap hotels={hotels} destination={destination} />
+        : <ItineraryMap destination={destination} />
+      }
+    </div>
   );
 
   return (
@@ -1000,28 +980,51 @@ export default function TripDetailPage() {
           </div>
         </div>
 
-        {/* ── Tab switcher ── */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-          {[
-            { key: 'hotels', label: 'Hotels', emoji: '🏨' },
-            { key: 'itinerary', label: 'Itinerary', emoji: '📅' },
-          ].map(tab => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
-              padding: '0.6rem 1.4rem',
+        {/* ── Tab switcher + Map toggle ── */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {[
+              { key: 'hotels', label: 'Hotels', emoji: '🏨' },
+              { key: 'itinerary', label: 'Itinerary', emoji: '📅' },
+            ].map(tab => (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
+                padding: '0.6rem 1.4rem',
+                borderRadius: '10px',
+                fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer',
+                transition: 'all 0.22s cubic-bezier(0.16,1,0.3,1)',
+                border: activeTab === tab.key ? '1px solid rgba(56,168,245,0.4)' : '1px solid var(--glass-border)',
+                background: activeTab === tab.key
+                  ? 'linear-gradient(135deg, rgba(0,96,199,0.7), rgba(13,141,232,0.5))'
+                  : 'var(--glass-card)',
+                color: activeTab === tab.key ? '#fff' : 'var(--text-sub)',
+                boxShadow: activeTab === tab.key ? '0 4px 18px rgba(13,141,232,0.3)' : 'none',
+                transform: activeTab === tab.key ? 'translateY(-1px)' : 'none',
+              }}>
+                {tab.emoji} {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Map toggle button */}
+          <button
+            onClick={() => setMapCollapsed(c => !c)}
+            title={mapCollapsed ? 'Show Map' : 'Hide Map'}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '0.55rem 1.1rem',
               borderRadius: '10px',
-              fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer',
-              transition: 'all 0.22s cubic-bezier(0.16,1,0.3,1)',
-              border: activeTab === tab.key ? '1px solid rgba(56,168,245,0.4)' : '1px solid var(--glass-border)',
-              background: activeTab === tab.key
-                ? 'linear-gradient(135deg, rgba(0,96,199,0.7), rgba(13,141,232,0.5))'
-                : 'var(--glass-card)',
-              color: activeTab === tab.key ? '#fff' : 'var(--text-sub)',
-              boxShadow: activeTab === tab.key ? '0 4px 18px rgba(13,141,232,0.3)' : 'none',
-              transform: activeTab === tab.key ? 'translateY(-1px)' : 'none',
-            }}>
-              {tab.emoji} {tab.label}
-            </button>
-          ))}
+              fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer',
+              transition: 'all 0.22s ease',
+              border: mapCollapsed ? '1px solid var(--glass-border)' : '1px solid rgba(56,168,245,0.4)',
+              background: mapCollapsed ? 'var(--glass-card)' : 'rgba(13,141,232,0.18)',
+              color: mapCollapsed ? 'var(--text-sub)' : '#7ec8f6',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(56,168,245,0.4)'; e.currentTarget.style.color = '#7ec8f6'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = mapCollapsed ? 'var(--glass-border)' : 'rgba(56,168,245,0.4)'; e.currentTarget.style.color = mapCollapsed ? 'var(--text-sub)' : '#7ec8f6'; }}
+          >
+            <Navigation size={14} />
+            {mapCollapsed ? 'Show Map' : 'Hide Map'}
+          </button>
         </div>
 
         {/* ── Split panel ── */}
