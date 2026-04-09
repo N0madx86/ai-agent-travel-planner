@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
 import {
   Calendar, Users, IndianRupee, MapPin, Loader2,
@@ -179,10 +180,10 @@ function Lightbox({ images, startIndex, onClose }) {
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose, prev, next]);
-  return (
-    <div className="lightbox-backdrop" onClick={onClose}>
+  return createPortal(
+    <div className="lightbox-backdrop" onClick={onClose} style={{ zIndex: 9999 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: '-2.5rem', right: 0, background: 'rgba(56,168,245,0.12)', border: '1px solid rgba(56,168,245,0.25)', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: '-2.5rem', right: 0, background: 'rgba(56,168,245,0.12)', border: '1px solid rgba(56,168,245,0.25)', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6', zIndex: 10000 }}>
           <XIcon size={16} />
         </button>
         <img key={idx} src={images[idx]} alt={`Photo ${idx + 1}`}
@@ -200,7 +201,8 @@ function Lightbox({ images, startIndex, onClose }) {
           </button>
         </>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -377,20 +379,21 @@ function PlaceImagesPanel({ destination }) {
 
   return (
     <>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px' }}>
         {images.map((url, i) => (
           <div key={i}
             onClick={() => setLightboxIdx(i)}
             style={{
               background: `url(${url}) center/cover no-repeat`,
-              height: '80px',
-              borderRadius: '0.5rem',
+              height: '100px',
+              borderRadius: '0.75rem',
               cursor: 'pointer',
-              transition: 'transform 0.22s ease, opacity 0.22s ease',
-              gridColumn: i === 0 ? 'span 2' : undefined,
+              transition: 'all 0.28s cubic-bezier(0.16,1,0.3,1)',
+              border: '1px solid var(--glass-border)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
             }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.opacity = '0.9'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.opacity = '1'; }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(13,141,232,0.25)'; e.currentTarget.style.borderColor = 'rgba(56,168,245,0.4)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.15)'; e.currentTarget.style.borderColor = 'var(--glass-border)'; }}
           />
         ))}
       </div>
@@ -692,7 +695,7 @@ export default function TripDetailPage() {
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [activeTab, setActiveTab] = useState('hotels');
-  const [mapCollapsed, setMapCollapsed] = useState(false);
+  const [mapCollapsed, setMapCollapsed] = useState(true);
 
   useEffect(() => { fetchData(); }, [id]);
 
@@ -931,31 +934,19 @@ export default function TripDetailPage() {
 
   // ── Right panel (map + images) ───────────────────────────────
   const mapPanel = (
-    <>
-      <div style={{
-        flex: activeTab === 'itinerary' ? '0 0 55%' : '1 1 100%',
-        minHeight: '300px',
-        borderRadius: '1rem',
-        overflow: 'hidden',
-        border: '1px solid var(--glass-border)',
-        boxShadow: '0 6px 28px rgba(0,0,0,0.2)',
-      }}>
-        {activeTab === 'hotels'
-          ? <HotelMap hotels={hotels} destination={destination} />
-          : <ItineraryMap destination={destination} />
-        }
-      </div>
-
-      {activeTab === 'itinerary' && (
-        <div className="card" style={{ padding: '1rem', flex: '1 1 auto' }}>
-          <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.75rem', color: 'var(--color-ocean-500)' }}>
-            <Camera size={12} style={{ display: 'inline', marginRight: 5 }} />
-            {destination} Snapshots
-          </p>
-          <PlaceImagesPanel destination={destination} />
-        </div>
-      )}
-    </>
+    <div style={{
+      flex: activeTab === 'itinerary' ? '0 0 55%' : '1 1 100%',
+      minHeight: '300px',
+      borderRadius: '1rem',
+      overflow: 'hidden',
+      border: '1px solid var(--glass-border)',
+      boxShadow: '0 6px 28px rgba(0,0,0,0.2)',
+    }}>
+      {activeTab === 'hotels'
+        ? <HotelMap hotels={hotels} destination={destination} />
+        : <ItineraryMap destination={destination} />
+      }
+    </div>
   );
 
   return (
@@ -998,6 +989,15 @@ export default function TripDetailPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ── Snapshots Ribbon ── */}
+        <div style={{ marginBottom: '2rem' }}>
+          <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '0.85rem', color: 'var(--text-sub)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Camera size={14} style={{ color: 'var(--accent-blue)' }} />
+            {trip.destination} Snapshots
+          </p>
+          <PlaceImagesPanel destination={trip.destination} />
         </div>
 
         {/* ── Tab switcher ── */}
