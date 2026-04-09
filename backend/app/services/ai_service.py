@@ -53,11 +53,18 @@ class AIService:
                         headers={
                             "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
                             "Content-Type": "application/json",
+                            "Accept": "application/json",
                         },
-                        data=json.dumps(payload)
+                        json=payload
                     )
-                    response.raise_for_status()
+                    if response.status_code != 200:
+                        logger.error(f"OpenRouter error {response.status_code}: {response.text}")
+                        response.raise_for_status()
+
                     result = response.json()
+                    if 'choices' not in result or not result['choices']:
+                        logger.error(f"Invalid OpenRouter response: {result}")
+                        return None
 
                     message = result['choices'][0]['message']
                     content = message.get('content', '').strip()
