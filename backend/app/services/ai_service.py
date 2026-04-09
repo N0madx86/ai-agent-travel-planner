@@ -113,7 +113,13 @@ Structure:
 ## 📝 Good to Know
 3 local culture/safety tips."""
 
+        # Try primary model
         result = await self._call_openrouter(prompt)
+        
+        # Fallback to secondary model if primary fails
+        if not result:
+            logger.info("Primary OpenRouter model failed, trying fallback: meta-llama/llama-3.1-8b-instruct:free")
+            result = await self._call_openrouter(prompt, model="meta-llama/llama-3.1-8b-instruct:free")
         if result:
             return result
             
@@ -213,6 +219,11 @@ Structure:
             logger.info(f"Using OpenRouter to curate best {STRICT_MAX} hotels for budget: {budget}")
 
             response_text = await self._call_openrouter(prompt)
+            
+            # Fallback for curation
+            if not response_text:
+                logger.info("Primary model failed for curation, trying fallback: meta-llama/llama-3.1-8b-instruct:free")
+                response_text = await self._call_openrouter(prompt, model="meta-llama/llama-3.1-8b-instruct:free")
             logger.info(f"OpenRouter raw response (first 300 chars): {repr(response_text[:300]) if response_text else 'EMPTY'}")
             if response_text:
                 # Robust extraction: find the JSON array regardless of surrounding text
