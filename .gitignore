@@ -32,3 +32,6 @@ travel_planner.db-journal
 # Testing
 cache/
 .pytest_cache/
+
+# Local scratch
+scratch/

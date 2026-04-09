@@ -4,7 +4,7 @@ import {
   Calendar, Users, IndianRupee, MapPin, Loader2,
   Hotel, Star, RefreshCw, Waves, Camera, ChevronLeft,
   ChevronRight, X as XIcon, Image as ImageIcon,
-  PanelRightClose, ExternalLink,
+  PanelRightClose, PanelRightOpen, ExternalLink,
   Sparkles, Navigation,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -181,33 +181,24 @@ function Lightbox({ images, startIndex, onClose }) {
   }, [onClose, prev, next]);
   return (
     <div className="lightbox-backdrop" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-        {/* Image wrapper — all buttons live inside so they never clip */}
-        <div style={{ position: 'relative', display: 'inline-flex' }}>
-          <img
-            key={idx}
-            src={images[idx]}
-            alt={`Photo ${idx + 1}`}
-            style={{ maxWidth: '85vw', maxHeight: '75vh', objectFit: 'contain', borderRadius: '1rem', boxShadow: '0 20px 80px rgba(0,0,0,0.8)', animation: 'fadeIn 0.3s ease', display: 'block' }}
-            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-          />
-          {/* Close — top right corner of image */}
-          <button onClick={onClose} style={{ position: 'absolute', top: '0.6rem', right: '0.6rem', background: 'rgba(2,13,30,0.75)', border: '1px solid rgba(56,168,245,0.3)', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6', zIndex: 10 }}>
-            <XIcon size={15} />
-          </button>
-          {/* Prev / Next — overlaid on sides of image */}
-          {images.length > 1 && <>
-            <button onClick={prev} style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(2,13,30,0.65)', border: '1px solid rgba(56,168,245,0.3)', borderRadius: '50%', width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6', zIndex: 10 }}>
-              <ChevronLeft size={20} />
-            </button>
-            <button onClick={next} style={{ position: 'absolute', right: '0.6rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(2,13,30,0.65)', border: '1px solid rgba(56,168,245,0.3)', borderRadius: '50%', width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6', zIndex: 10 }}>
-              <ChevronRight size={20} />
-            </button>
-          </>}
-        </div>
-        <div style={{ color: 'rgba(126,200,246,0.6)', fontSize: '0.8rem', letterSpacing: '0.1em' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: '-2.5rem', right: 0, background: 'rgba(56,168,245,0.12)', border: '1px solid rgba(56,168,245,0.25)', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6' }}>
+          <XIcon size={16} />
+        </button>
+        <img key={idx} src={images[idx]} alt={`Photo ${idx + 1}`}
+          style={{ maxWidth: '85vw', maxHeight: '75vh', objectFit: 'contain', borderRadius: '1rem', boxShadow: '0 20px 80px rgba(0,0,0,0.8)', animation: 'fadeIn 0.3s ease' }}
+          onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+        <div style={{ marginTop: '1rem', color: 'rgba(126,200,246,0.6)', fontSize: '0.8rem', letterSpacing: '0.1em' }}>
           {idx + 1} / {images.length}
         </div>
+        {images.length > 1 && <>
+          <button onClick={prev} style={{ position: 'absolute', left: '-3.5rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(13,141,232,0.18)', border: '1px solid rgba(56,168,245,0.25)', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6' }}>
+            <ChevronLeft size={20} />
+          </button>
+          <button onClick={next} style={{ position: 'absolute', right: '-3.5rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(13,141,232,0.18)', border: '1px solid rgba(56,168,245,0.25)', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6' }}>
+            <ChevronRight size={20} />
+          </button>
+        </>}
       </div>
     </div>
   );
@@ -387,24 +378,19 @@ function PlaceImagesPanel({ destination }) {
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
-        {images.slice(0, 6).map((url, i) => (
-          <div
-            key={i}
+        {images.map((url, i) => (
+          <div key={i}
             onClick={() => setLightboxIdx(i)}
             style={{
-              backgroundImage: `url(${url})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-              height: i === 0 ? '110px' : '88px',
-              borderRadius: '0.55rem',
+              background: `url(${url}) center/cover no-repeat`,
+              height: '80px',
+              borderRadius: '0.5rem',
               cursor: 'pointer',
+              transition: 'transform 0.22s ease, opacity 0.22s ease',
               gridColumn: i === 0 ? 'span 2' : undefined,
-              transition: 'transform 0.22s ease, filter 0.22s ease',
-              overflow: 'hidden',
             }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.filter = 'brightness(1.1)'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.filter = ''; }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.opacity = '0.9'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.opacity = '1'; }}
           />
         ))}
       </div>
@@ -656,6 +642,23 @@ function SplitPanel({ left, right, mapCollapsed, onToggleCollapse }) {
         </div>
       )}
 
+      {/* Expand button (when collapsed) */}
+      {mapCollapsed && (
+        <button onClick={onToggleCollapse} title="Show map" style={{
+          position: 'fixed', right: '1.5rem', bottom: '2rem',
+          width: 44, height: 44, borderRadius: '50%',
+          background: 'linear-gradient(135deg,#0060c7,#0d8de8)',
+          border: 'none', color: '#fff', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 50, boxShadow: '0 4px 20px rgba(13,141,232,0.5)',
+          transition: 'all 0.22s',
+        }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(13,141,232,0.65)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(13,141,232,0.5)'; }}
+        >
+          <PanelRightOpen size={18} />
+        </button>
+      )}
     </div>
   );
 }
@@ -689,7 +692,7 @@ export default function TripDetailPage() {
   const [generatingItinerary, setGeneratingItinerary] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [activeTab, setActiveTab] = useState('hotels');
-  const [mapCollapsed, setMapCollapsed] = useState(true); // closed by default
+  const [mapCollapsed, setMapCollapsed] = useState(false);
 
   useEffect(() => { fetchData(); }, [id]);
 
@@ -806,9 +809,9 @@ export default function TripDetailPage() {
         <div style={{
           display: 'grid',
           gridTemplateColumns: mapCollapsed
-            ? 'repeat(auto-fill, minmax(260px, 1fr))'
+            ? 'repeat(auto-fill, minmax(220px, 1fr))'
             : '1fr',
-          gap: mapCollapsed ? '1.1rem' : '0.85rem',
+          gap: mapCollapsed ? '1rem' : '0.85rem',
         }}>
           {hotels.map((hotel, hi) => (
             <HotelCard key={hotel.id || hi} hotel={hotel} index={hi} isGridMode={mapCollapsed} />
@@ -926,12 +929,12 @@ export default function TripDetailPage() {
     </section>
   );
 
-  // ── Right panel: map (top) + snapshot (bottom, always shown) ──
+  // ── Right panel (map + images) ───────────────────────────────
   const mapPanel = (
     <>
       <div style={{
-        flex: '1 1 auto',
-        minHeight: '280px',
+        flex: activeTab === 'itinerary' ? '0 0 55%' : '1 1 100%',
+        minHeight: '300px',
         borderRadius: '1rem',
         overflow: 'hidden',
         border: '1px solid var(--glass-border)',
@@ -943,17 +946,17 @@ export default function TripDetailPage() {
         }
       </div>
 
-      {/* Snapshot — always visible in right panel for both tabs */}
-      <div className="card" style={{ padding: '1rem', flexShrink: 0 }}>
-        <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.75rem', color: 'var(--color-ocean-500)' }}>
-          <Camera size={12} style={{ display: 'inline', marginRight: 5 }} />
-          {destination} Snapshots
-        </p>
-        <PlaceImagesPanel destination={destination} />
-      </div>
+      {activeTab === 'itinerary' && (
+        <div className="card" style={{ padding: '1rem', flex: '1 1 auto' }}>
+          <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.75rem', color: 'var(--color-ocean-500)' }}>
+            <Camera size={12} style={{ display: 'inline', marginRight: 5 }} />
+            {destination} Snapshots
+          </p>
+          <PlaceImagesPanel destination={destination} />
+        </div>
+      )}
     </>
   );
-
 
   return (
     <div style={{ minHeight: '100vh', padding: '2.5rem 1rem', willChange: 'auto' }}>
@@ -997,51 +1000,28 @@ export default function TripDetailPage() {
           </div>
         </div>
 
-        {/* ── Tab switcher + Map toggle ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {[
-              { key: 'hotels', label: 'Hotels', emoji: '🏨' },
-              { key: 'itinerary', label: 'Itinerary', emoji: '📅' },
-            ].map(tab => (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
-                padding: '0.6rem 1.4rem',
-                borderRadius: '10px',
-                fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer',
-                transition: 'all 0.22s cubic-bezier(0.16,1,0.3,1)',
-                border: activeTab === tab.key ? '1px solid rgba(56,168,245,0.4)' : '1px solid var(--glass-border)',
-                background: activeTab === tab.key
-                  ? 'linear-gradient(135deg, rgba(0,96,199,0.7), rgba(13,141,232,0.5))'
-                  : 'var(--glass-card)',
-                color: activeTab === tab.key ? '#fff' : 'var(--text-sub)',
-                boxShadow: activeTab === tab.key ? '0 4px 18px rgba(13,141,232,0.3)' : 'none',
-                transform: activeTab === tab.key ? 'translateY(-1px)' : 'none',
-              }}>
-                {tab.emoji} {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Map toggle button */}
-          <button
-            onClick={() => setMapCollapsed(c => !c)}
-            title={mapCollapsed ? 'Show Map' : 'Hide Map'}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '0.55rem 1.1rem',
+        {/* ── Tab switcher ── */}
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+          {[
+            { key: 'hotels', label: 'Hotels', emoji: '🏨' },
+            { key: 'itinerary', label: 'Itinerary', emoji: '📅' },
+          ].map(tab => (
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
+              padding: '0.6rem 1.4rem',
               borderRadius: '10px',
-              fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer',
-              transition: 'all 0.22s ease',
-              border: mapCollapsed ? '1px solid var(--glass-border)' : '1px solid rgba(56,168,245,0.4)',
-              background: mapCollapsed ? 'var(--glass-card)' : 'rgba(13,141,232,0.18)',
-              color: mapCollapsed ? 'var(--text-sub)' : '#7ec8f6',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(56,168,245,0.4)'; e.currentTarget.style.color = '#7ec8f6'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = mapCollapsed ? 'var(--glass-border)' : 'rgba(56,168,245,0.4)'; e.currentTarget.style.color = mapCollapsed ? 'var(--text-sub)' : '#7ec8f6'; }}
-          >
-            <Navigation size={14} />
-            {mapCollapsed ? 'Show Map' : 'Hide Map'}
-          </button>
+              fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer',
+              transition: 'all 0.22s cubic-bezier(0.16,1,0.3,1)',
+              border: activeTab === tab.key ? '1px solid rgba(56,168,245,0.4)' : '1px solid var(--glass-border)',
+              background: activeTab === tab.key
+                ? 'linear-gradient(135deg, rgba(0,96,199,0.7), rgba(13,141,232,0.5))'
+                : 'var(--glass-card)',
+              color: activeTab === tab.key ? '#fff' : 'var(--text-sub)',
+              boxShadow: activeTab === tab.key ? '0 4px 18px rgba(13,141,232,0.3)' : 'none',
+              transform: activeTab === tab.key ? 'translateY(-1px)' : 'none',
+            }}>
+              {tab.emoji} {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* ── Split panel ── */}
