@@ -181,24 +181,33 @@ function Lightbox({ images, startIndex, onClose }) {
   }, [onClose, prev, next]);
   return (
     <div className="lightbox-backdrop" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: '-2.5rem', right: 0, background: 'rgba(56,168,245,0.12)', border: '1px solid rgba(56,168,245,0.25)', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6' }}>
-          <XIcon size={16} />
-        </button>
-        <img key={idx} src={images[idx]} alt={`Photo ${idx + 1}`}
-          style={{ maxWidth: '85vw', maxHeight: '75vh', objectFit: 'contain', borderRadius: '1rem', boxShadow: '0 20px 80px rgba(0,0,0,0.8)', animation: 'fadeIn 0.3s ease' }}
-          onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-        <div style={{ marginTop: '1rem', color: 'rgba(126,200,246,0.6)', fontSize: '0.8rem', letterSpacing: '0.1em' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+        {/* Image wrapper — all buttons live inside so they never clip */}
+        <div style={{ position: 'relative', display: 'inline-flex' }}>
+          <img
+            key={idx}
+            src={images[idx]}
+            alt={`Photo ${idx + 1}`}
+            style={{ maxWidth: '85vw', maxHeight: '75vh', objectFit: 'contain', borderRadius: '1rem', boxShadow: '0 20px 80px rgba(0,0,0,0.8)', animation: 'fadeIn 0.3s ease', display: 'block' }}
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+          {/* Close — top right corner of image */}
+          <button onClick={onClose} style={{ position: 'absolute', top: '0.6rem', right: '0.6rem', background: 'rgba(2,13,30,0.75)', border: '1px solid rgba(56,168,245,0.3)', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6', zIndex: 10 }}>
+            <XIcon size={15} />
+          </button>
+          {/* Prev / Next — overlaid on sides of image */}
+          {images.length > 1 && <>
+            <button onClick={prev} style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(2,13,30,0.65)', border: '1px solid rgba(56,168,245,0.3)', borderRadius: '50%', width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6', zIndex: 10 }}>
+              <ChevronLeft size={20} />
+            </button>
+            <button onClick={next} style={{ position: 'absolute', right: '0.6rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(2,13,30,0.65)', border: '1px solid rgba(56,168,245,0.3)', borderRadius: '50%', width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6', zIndex: 10 }}>
+              <ChevronRight size={20} />
+            </button>
+          </>}
+        </div>
+        <div style={{ color: 'rgba(126,200,246,0.6)', fontSize: '0.8rem', letterSpacing: '0.1em' }}>
           {idx + 1} / {images.length}
         </div>
-        {images.length > 1 && <>
-          <button onClick={prev} style={{ position: 'absolute', left: '-3.5rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(13,141,232,0.18)', border: '1px solid rgba(56,168,245,0.25)', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6' }}>
-            <ChevronLeft size={20} />
-          </button>
-          <button onClick={next} style={{ position: 'absolute', right: '-3.5rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(13,141,232,0.18)', border: '1px solid rgba(56,168,245,0.25)', borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#7ec8f6' }}>
-            <ChevronRight size={20} />
-          </button>
-        </>}
       </div>
     </div>
   );
@@ -378,19 +387,24 @@ function PlaceImagesPanel({ destination }) {
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
-        {images.map((url, i) => (
-          <div key={i}
+        {images.slice(0, 6).map((url, i) => (
+          <div
+            key={i}
             onClick={() => setLightboxIdx(i)}
             style={{
-              background: `url(${url}) center/cover no-repeat`,
-              height: '80px',
-              borderRadius: '0.5rem',
+              backgroundImage: `url(${url})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              height: i === 0 ? '110px' : '88px',
+              borderRadius: '0.55rem',
               cursor: 'pointer',
-              transition: 'transform 0.22s ease, opacity 0.22s ease',
               gridColumn: i === 0 ? 'span 2' : undefined,
+              transition: 'transform 0.22s ease, filter 0.22s ease',
+              overflow: 'hidden',
             }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.opacity = '0.9'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.opacity = '1'; }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.filter = 'brightness(1.1)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.filter = ''; }}
           />
         ))}
       </div>
@@ -839,15 +853,6 @@ export default function TripDetailPage() {
         </div>
       </div>
 
-      {/* ── Destination Snapshot — always visible at top ── */}
-      <div className="card" style={{ padding: '1rem', marginBottom: '1.25rem' }}>
-        <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.75rem', color: 'var(--color-ocean-500)' }}>
-          <Camera size={12} style={{ display: 'inline', marginRight: 5 }} />
-          {destination} Snapshots
-        </p>
-        <PlaceImagesPanel destination={destination} />
-      </div>
-
       {generatingItinerary && !itinerary && (
         <div style={{ borderRadius: '1rem', border: '1px solid rgba(56,168,245,0.15)', background: 'var(--glass-card)', padding: '3.5rem 2rem', textAlign: 'center' }}>
           <Waves style={{ width: 36, height: 36, animation: 'float 2s ease-in-out infinite', color: '#0d8de8', margin: '0 auto 1rem' }} />
@@ -921,22 +926,34 @@ export default function TripDetailPage() {
     </section>
   );
 
-  // ── Right panel — map only ───────────────────────────────────
+  // ── Right panel: map (top) + snapshot (bottom, always shown) ──
   const mapPanel = (
-    <div style={{
-      flex: '1 1 100%',
-      minHeight: '300px',
-      borderRadius: '1rem',
-      overflow: 'hidden',
-      border: '1px solid var(--glass-border)',
-      boxShadow: '0 6px 28px rgba(0,0,0,0.2)',
-    }}>
-      {activeTab === 'hotels'
-        ? <HotelMap hotels={hotels} destination={destination} />
-        : <ItineraryMap destination={destination} />
-      }
-    </div>
+    <>
+      <div style={{
+        flex: '1 1 auto',
+        minHeight: '280px',
+        borderRadius: '1rem',
+        overflow: 'hidden',
+        border: '1px solid var(--glass-border)',
+        boxShadow: '0 6px 28px rgba(0,0,0,0.2)',
+      }}>
+        {activeTab === 'hotels'
+          ? <HotelMap hotels={hotels} destination={destination} />
+          : <ItineraryMap destination={destination} />
+        }
+      </div>
+
+      {/* Snapshot — always visible in right panel for both tabs */}
+      <div className="card" style={{ padding: '1rem', flexShrink: 0 }}>
+        <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.75rem', color: 'var(--color-ocean-500)' }}>
+          <Camera size={12} style={{ display: 'inline', marginRight: 5 }} />
+          {destination} Snapshots
+        </p>
+        <PlaceImagesPanel destination={destination} />
+      </div>
+    </>
   );
+
 
   return (
     <div style={{ minHeight: '100vh', padding: '2.5rem 1rem', willChange: 'auto' }}>
