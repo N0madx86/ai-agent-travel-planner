@@ -38,6 +38,12 @@ class AIService:
             try:
                 async with httpx.AsyncClient(timeout=120.0) as client:
                     payload = {
+                        "model": target_model,
+                        "messages": [
+                            {"role": "user", "content": prompt}
+                        ]
+                    }
+
                     # GPT-OSS-20B and Stepfun reasoning support
                     if use_reasoning and ("stepfun" in target_model or "gpt-oss-20b" in target_model):
                         payload["reasoning"] = {"enabled": True}
